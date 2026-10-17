@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Closed-Loop Offloading Demo</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#14181f;--mut:#5b6573;--bd:#dfe3e8;--ac:#0b6e6e;--bad:#c0392b;--ok:#1e8e4e;--warn:#b7791f}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1317;--card:#171d23;--tx:#e8ecf0;--mut:#9aa6b2;--bd:#27303a;--ac:#3cc4b8;--bad:#ff6b5b;--ok:#4cd387;--warn:#f0b43c}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif}
+main{max-width:1120px;margin:0 auto;padding:14px}h1{font-size:1.3rem;margin:0}h2{font-size:.85rem;margin:10px 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.note{color:var(--warn);font-size:.8rem;margin:4px 0 12px}
+.grid{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}.foot{flex:0 1 290px;min-width:230px}.side{flex:1 1 420px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}.half{flex:1 1 360px;min-width:0}
+svg{display:block;max-width:100%;height:auto}.hint{font-size:.75rem;color:var(--mut);margin:6px 0 0}
+.chips,.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.chips{margin-bottom:8px}
+.chip{padding:3px 9px;border-radius:99px;border:1px solid var(--bd);font-size:.75rem;color:var(--mut)}.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.chip.on.ALERT,.chip.on.REVERSE,.chip.on.FAULT,.chip.on.ESTOP{background:var(--bad);border-color:var(--bad)}
+.met{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:6px;margin-bottom:8px}
+.m{border:1px solid var(--bd);border-radius:8px;padding:5px 8px}.m b{display:block;font-size:1rem}.m span{font-size:.7rem;color:var(--mut)}
+button,select{font:inherit;font-size:.8rem;padding:5px 9px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer}
+button:hover{border-color:var(--ac)}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}button.d{border-color:var(--bad);color:var(--bad)}
+.sl{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;font-size:.8rem;margin:3px 0}.sl input{width:100%}.sl b{min-width:36px;text-align:right}
+#log{height:190px;overflow:auto;font:12px/1.5 ui-monospace,Menlo,monospace}#log div{border-bottom:1px solid var(--bd)}
+.keep{color:var(--ok)}.reject,.alert,.fault{color:var(--bad)}.demo{color:var(--ac)}
+.ring{animation:pu 1s infinite}@keyframes pu{50%{stroke-opacity:.2}}
+</style></head><body><main>
+<h1>Closed-Loop Diabetic-Foot Offloading Demo</h1>
+<p class="note">Software simulation. Pressures and thresholds are illustrative prototype settings, not clinical data.</p>
+<div class="grid">
+ <section class="card foot"><svg id="foot" viewBox="0 0 200 420"></svg><p class="hint">Click a sensor: +100 kPa. Shift-click: −100 kPa.</p></section>
+ <section class="side">
+  <div class="card"><div id="chips" class="chips"></div><div id="met" class="met"></div>
+   <div class="row">
+    <button class="p" id="bGuided">▶ Guided demo</button><button id="bPause">Pause</button><button id="bStep">Step</button>
+    <select id="sSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+    <button class="d" id="bStop">E-STOP</button><button id="bCal">Calibrate baseline</button><button id="bCsv">Export CSV</button><button id="bReset">Reset</button>
+   </div></div>
+  <div class="card"><h2>Scenarios</h2><div id="scen" class="row"></div>
+   <h2>Fault injection</h2><div class="row">
+    <select id="fSensor"></select><button id="bDis">Disconnect / reconnect sensor</button>
+    <select id="fZone"></select><button id="bLeak">Start / stop leak</button></div></div>
+  <div class="card"><h2>Parameters</h2><div id="sliders"></div></div>
+ </section>
+</div>
+<div class="grid">
+ <section class="card half"><h2>Peak plantar pressure (dashed = threshold)</h2><svg id="ch" viewBox="0 0 300 90" preserveAspectRatio="none" style="width:100%;height:170px"></svg></section>
+ <section class="card half"><h2>Event log</h2><div id="log"></div></section>
+</div>
+</main><script type="module" src="/src/main.ts"></script></body></html>

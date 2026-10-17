@@ -1,0 +1,145 @@
+{
+ "units": "mm",
+ "length": 270.5,
+ "max_width": 85.0,
+ "stack": 6.6,
+ "parameters": {
+  "fsr_pocket_d": 14.0,
+  "fsr_d": 12.7,
+  "fsr_t": 0.5,
+  "temp_pocket_d": 4.4,
+  "temp_d": 3.6,
+  "wall": 2.0,
+  "weld": 2.5,
+  "t_base_floor": 1.0,
+  "t_base_chan": 1.0,
+  "t_pneu": 2.4,
+  "t_sens": 1.2,
+  "t_cover": 1.0,
+  "groove_w": 2.2,
+  "port_d": 2.4,
+  "bladder_h": 2.2
+ },
+ "fsr_positions": [
+  [
+   "Hallux",
+   -15.18,
+   242.88,
+   "F"
+  ],
+  [
+   "Toes 2-5",
+   17.25,
+   229.08,
+   "F"
+  ],
+  [
+   "Met 1",
+   -22.08,
+   187.68,
+   "F"
+  ],
+  [
+   "Met 3",
+   2.07,
+   193.2,
+   "F"
+  ],
+  [
+   "Met 5",
+   26.22,
+   182.85,
+   "F"
+  ],
+  [
+   "Medial arch",
+   -25.35,
+   131.1,
+   "M"
+  ],
+  [
+   "Lateral midfoot",
+   26.22,
+   127.65,
+   "L"
+  ],
+  [
+   "Midfoot",
+   0.0,
+   115.92,
+   "L"
+  ],
+  [
+   "Heel medial",
+   -12.42,
+   51.75,
+   "H"
+  ],
+  [
+   "Heel lateral",
+   15.18,
+   51.75,
+   "H"
+  ],
+  [
+   "Heel centre",
+   1.38,
+   24.15,
+   "H"
+  ]
+ ],
+ "temp_positions": [
+  [
+   "Hallux",
+   -4.18,
+   242.88
+  ],
+  [
+   "Met 1",
+   -11.08,
+   187.68
+  ],
+  [
+   "Met 5",
+   37.22,
+   182.85
+  ],
+  [
+   "Lateral midfoot",
+   15.22,
+   127.65
+  ],
+  [
+   "Heel medial",
+   -1.42,
+   51.75
+  ],
+  [
+   "Heel lateral",
+   26.18,
+   51.75
+  ]
+ ],
+ "layers": {
+  "01_base_floor": {
+   "z0": 0,
+   "thickness": 1.0
+  },
+  "02_base_channels": {
+   "z0": 1.0,
+   "thickness": 1.0
+  },
+  "03_pneumatic_layer": {
+   "z0": 2.0,
+   "thickness": 2.4
+  },
+  "04_sensor_layer": {
+   "z0": 4.4,
+   "thickness": 1.2
+  },
+  "05_top_cover": {
+   "z0": 5.6000000000000005,
+   "thickness": 1.0
+  }
+ }
+}
