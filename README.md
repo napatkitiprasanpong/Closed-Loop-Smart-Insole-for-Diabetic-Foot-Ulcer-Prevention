@@ -28,45 +28,62 @@ Sense  ->  Confirm  ->  Plan  ->  Adjust  ->  Verify  ->  Keep or reverse
 
 - **Sense:** 11 pressure sensors and 6 temperature sensors in a layered insole.
 - **Confirm:** ignore a normal step, act only on sustained load.
-- **Plan:** search combined changes across **four bladder zones** (forefoot, medial, lateral, heel) for **1 to 3 simultaneous hotspots**, deflating under a hotspot or inflating around it.
-- **Verify:** measure again. Keep the change only if no new hotspot appeared and total excess pressure fell; otherwise reverse it.
+- **Plan:** search combined changes across **four bladder zones** (forefoot, medial, lateral, heel) for **1 to 3 simultaneous hotspots**, deflating under a hotspot or inflating around it. A zone that contains a hotspot is never inflated.
+- **Verify:** wait until the pressure readings stop drifting (up to 20 s), then average a short window and measure again. Keep the change only if no new hotspot appeared and total excess pressure fell; otherwise reverse it.
 - **Learn:** every attempt, including a rejected one, refines the controller's estimate of bladder effectiveness and load transfer, so the next plan is better.
 - **Adaptive re-tests:** held adjustments are relaxed in small steps with a hysteresis band and increasing waits, so the system does not cycle at the threshold and returns to natural resting pressure when the load is gone.
 
 ### Results so far (simulation only)
 
-| Case | Hotspot pressures (kPa), before to after | Zones moved |
-|---|---|---|
-| 1 hotspot | Heel 480 → 350 | heel |
-| 2 hotspots | Heel 480 → 351, metatarsal 460 → 358 | forefoot, heel |
-| 3 hotspots | Heel 480 → 354, metatarsal 460 → 368, lateral midfoot 440 → 377 | forefoot, lateral, heel |
+| Case       | Hotspot pressures (kPa), before to after                          | Zones moved             |
+| ---------- | ----------------------------------------------------------------- | ----------------------- |
+| 1 hotspot  | Heel 480 → 350                                                    | heel                    |
+| 2 hotspots | Heel 480 → 351, metatarsal 460 → 337                              | forefoot, heel          |
+| 3 hotspots | Heel 480 → 355, metatarsal 460 → 347, lateral midfoot 440 → 354   | forefoot, lateral, heel |
 
-Threshold 400 kPa. Each case is kept in about 5 s of simulated time with no new hotspot. The pressure-transfer model is an **assumption** and must be replaced with bench measurements.
+Threshold 400 kPa. Each case is kept after about 6 to 7 s of simulated time with no new hotspot (default simulator settings, seed 1). The pressure-transfer model is an **assumption** and must be replaced with bench measurements.
+
+### Stress test against a simulator that disagrees with the controller
+
+The controller assumes one load-transfer behaviour; the simulator is then changed so the assumption is wrong. 432 runs (4 scenarios x transfer 20/60/100% x spread 30/55/90 mm x coupling 0.5/0.9/1.3 x pump speed 0.05/0.25 per s x sensor noise 2/8%), 100 s each:
+
+| Measure                                                   | Fixed 2.2 s wait (old) | Wait for pressure to settle (now) |
+| --------------------------------------------------------- | ---------------------- | --------------------------------- |
+| Runs fully resolved                                       | 405                    | 404                               |
+| Runs ending with a new hotspot somewhere else             | 12                     | 3                                 |
+| Plans *kept* while a new hotspot existed                  | 2                      | 1                                 |
+| Longest time a previously cool site spent above threshold | 94 s                   | 44 s                              |
+| Highest pressure reached at a previously cool site        | 666 kPa                | 557 kPa                           |
+
+This is better, not solved: a rejected trial plan still exposes a neighbouring site above threshold for a few seconds before it is reversed, and one run still kept a plan too early. The automated tests check that the safety invariants hold on a smaller version of this grid.
 
 ## What is in this repository
 
-| Folder | Contents |
-|---|---|
-| `simulation/` | TypeScript controller, load-transfer simulator, 17 automated tests, and a web dashboard with scenarios, fault injection and CSV export |
-| `cad/` | Concept CAD of the insole (5 layers, 4 bladders, sensor pockets, control box): STL parts and SVG layer outlines |
-| `electronics/` | ESP32-S3 controller board design: schematic sheets (PDF), netlist, BOM, GPIO pin map |
-| `presentation/` | 18-slide pitch deck as SVG slides and an animated browser presentation |
-| `docs/` | Requirements, safety and risk register; materials table |
+| Path | Contents |
+| ---- | -------- |
+| `offload-demo/` | TypeScript controller, load-transfer simulator, 20 automated tests, and a web dashboard with scenarios, fault injection and CSV export |
+| `insole-cad/` | Concept CAD of the insole (5 layers, 4 bladders, sensor pockets, control box): STL parts, SVG layer outlines, `parameters.json` |
+| `esp 32/` | ESP32-S3 controller board design: schematic sheets (PDF and PNG), netlist, BOM, GPIO pin map (`pins.h`) |
+| `insole-deck/` | 12-slide pitch deck as SVG slides (`figma-svg/`) and an animated browser presentation (`presentation.html`) |
+| `Smart Diabetic-Foot Insole_ Requirements and Risk Register (draft v0.1).html` | Requirements, safety and risk register (open in a browser) |
+| `Closed-Loop Insole_ Live 3D Control Simulation.html` | Stand-alone 3D control simulation (open in a browser) |
+| `Smart Diabetic-Foot Insole - 3D CAD Viewer.html` | Stand-alone 3D viewer for the CAD (open in a browser) |
+| `insole-materials.xlsx` | Materials table |
 
 ## Run the simulation
 
 Requires Node 22.18 or newer.
 
-```bash
-cd simulation
+```
+cd offload-demo
 npm install
 npm run dev        # dashboard, usually http://localhost:5173
-npm test           # 17 tests on the controller and simulator
+npm test           # 20 tests on the controller and simulator
 npm run typecheck
 npm run build      # static site in dist/
 ```
 
-The dashboard lets you click sensors to add load, apply 1, 2 or 3 hotspot scenarios, inject sensor and leak faults, change thresholds and model parameters, and watch the controller states.
+The dashboard lets you click sensors to add load, apply 1, 2 or 3 hotspot scenarios, inject sensor and leak faults, change thresholds and model parameters, and watch the controller states. GitHub Actions runs the typecheck, tests and build on every push.
 
 ## Hardware design (concept)
 
@@ -81,6 +98,8 @@ The schematic has **not** been reviewed by an electronics engineer or built. IC 
 - No physical prototype and no bench or human data.
 - The load-transfer behavior in the simulator is assumed.
 - Differences from prior work (verified, reversible adjustments, multi-hotspot planning, learning from rejected attempts) are **proposed**. A full literature and patent search has not been done, so novelty is not claimed.
+- The controller only sees the pressure sensors. It cannot see how far a bladder has actually moved, so it infers "settled" from the readings. A gauge pressure sensor per bladder (the board has an I2C header for one) would be a more direct check.
+- The control box in the CAD shows 4 valve placeholders, but the board drives 8 valves (fill and vent for each zone). One of the two needs updating.
 - Not for clinical use. Any use on people needs ethics approval and clinical oversight.
 
 ## Roadmap
@@ -107,7 +126,7 @@ Alert-only products include the Orpyx insole, the Podimetrics SmartMat and Siren
 
 ## License
 
-To be chosen. Suggested: MIT for code, CC BY 4.0 for documents and design files.
+MIT (see `LICENSE`). Change it if you prefer something else, for example CC BY 4.0 for the documents and design files.
 
 ## Contact
 

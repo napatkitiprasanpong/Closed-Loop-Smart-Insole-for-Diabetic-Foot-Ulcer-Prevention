@@ -23,7 +23,10 @@ export interface ControllerConfig {
   stepFirst: number;      // deflation step on first attempt
   stepRetry: number;      // smaller step on the retry
   stabilizeS: number;     // wait for pneumatics to settle
-  verifyS: number;        // measure-again window
+  verifyS: number;        // measure-again window (readings are averaged over this window)
+  settleWindowS: number;  // readings count as settled when the mean of the last window matches the mean of the window 2 windows earlier
+  settleBandKpa: number;  // largest allowed change between those two window means, at any sensor
+  settleMaxS: number;     // give up waiting for the pneumatics to settle after this long and verify anyway
   reverseS: number;       // time allowed for a reversal
   maxAttempts: number;    // plans applied per episode (kept, partial or rejected)
   marginRatio: number;    // planner aims for predicted pressure below this fraction of the threshold
@@ -48,7 +51,7 @@ export interface ControllerConfig {
 
 export const DEFAULT_CONFIG: ControllerConfig = {
   thresholdKpa: 400, persistenceS: 2, stepFirst: 0.35, stepRetry: 0.2,
-  stabilizeS: 2.2, verifyS: 0.8, reverseS: 1.8, maxAttempts: 3,
+  stabilizeS: 2.2, verifyS: 0.8, settleWindowS: 0.8, settleBandKpa: 12, settleMaxS: 20, reverseS: 1.8, maxAttempts: 3,
   marginRatio: 0.92, improveMin: 0.2, moveCost: 300, priorOwn: 0.8, priorTransfer: 0.4, sigmaMm: 45, stiffGain: 1, relaxStepMax: 0.25,
   minSupport: 0.1, maxSupport: 0.9, holdS: 6, holdMaxS: 64, probeIntervalS: 2, releaseRatio: 0.85, reliefStep: 0.1,
   wp: 0.6, wt: 0.2, wd: 0.2, dtRef: 2.5, durRef: 30,

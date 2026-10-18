@@ -49,6 +49,7 @@ export class Controller {
   private quiet = 0;
   private margin: number;   // planning margin; tightens after each rejected plan, resets for a new episode
   private risk: number[] = SENSORS.map(() => 0);
+  private hist: { t: number; p: number[] }[] = [];   // recent readings, used to tell when pressures have stopped changing
 
   constructor(cfg: Partial<ControllerConfig> = {}) {
     this.cfg = { ...DEFAULT_CONFIG, ...cfg };
@@ -69,12 +70,15 @@ export class Controller {
 
     if (p.some(v => !Number.isFinite(v))) {
       if (this.state !== "FAULT") {
-        this.neutralise(); this.tgt = -1; this.attempt = 0; this.plan = undefined; this.probeZone = null; this.quiet = 0; this.resetHold(); this.go("FAULT");
+        this.neutralise(); this.tgt = -1; this.attempt = 0; this.plan = undefined; this.probeZone = null; this.quiet = 0; this.resetHold(); this.hist = []; this.go("FAULT");
         log("fault", "Sensor reading lost. All zones returned to neutral support.");
       }
       return this.result(events);
     }
     if (this.state === "FAULT") { this.go("MONITOR"); log("info", "Sensors recovered. Monitoring resumed."); }
+
+    this.hist.push({ t: this.clock, p: p.slice() });
+    while (this.hist.length > 1 && this.hist[0].t < this.clock - 3 * c.settleWindowS - dt) this.hist.shift();
 
     const lvl = 0.97 * c.thresholdKpa;   // hold band just under the trigger level, so a sensor hovering at the threshold counts as still high
     p.forEach((v, i) => { this.dur[i] = v > lvl ? this.dur[i] + dt : Math.max(0, this.dur[i] - dt); });
@@ -99,25 +103,44 @@ export class Controller {
         else if (this.dur.some(d => d >= c.persistenceS)) { this.attempt = 0; this.margin = c.marginRatio; this.begin(p, log); }
         break;
       case "ADJUST":
-        if (this.stateT >= c.stabilizeS) { this.go("VERIFY"); log("info", "Pressure stabilised. Measuring again."); }
+        if (this.stateT >= c.stabilizeS && (this.settled() || this.stateT >= c.settleMaxS)) {
+          const late = !this.settled();
+          this.go("VERIFY"); log("info", late ? "Pressure still drifting after the maximum wait. Measuring anyway." : "Pressure stabilised. Measuring again.");
+        }
         break;
       case "VERIFY":
-        if (this.stateT >= c.verifyS) verification = this.verify(p, log);
+        if (this.stateT >= c.verifyS) verification = this.verify(this.mean(c.verifyS), log);
         break;
       case "REVERSE":
-        if (this.stateT >= c.reverseS) {
+        if (this.stateT >= c.reverseS && (this.settled() || this.stateT >= c.settleMaxS)) {
           if (this.attempt >= c.maxAttempts) this.raiseAlert("Safe redistribution not achieved. Previous support restored; user/clinician notified.", log);
           else this.begin(p, log);
         }
         break;
       case "PROBE":
-        if (this.stateT >= c.stabilizeS + c.verifyS) this.finishProbe(p, log);
+        if (this.stateT >= c.stabilizeS + c.verifyS && (this.settled() || this.stateT >= c.settleMaxS)) this.finishProbe(this.mean(c.verifyS), log);
         break;
       case "ALERT":
         if (p.every(v => v <= c.thresholdKpa)) { this.attempt = 0; this.tgt = -1; this.resetHold(); this.go("MONITOR"); log("info", "Load cleared. Monitoring resumed."); }
         break;
     }
     return this.result(events, verification);
+  }
+
+
+  /** Mean reading per sensor over the last `w` seconds (smooths sensor noise before a keep/reject decision). */
+  private mean(w: number, back = 0): number[] {
+    const hi = this.clock - back, lo = hi - w, rows = this.hist.filter(h => h.t > lo && h.t <= hi + 1e-9);
+    if (!rows.length) return this.hist[this.hist.length - 1].p.slice();
+    return SENSORS.map((_, i) => rows.reduce((a, r) => a + r.p[i], 0) / rows.length);
+  }
+
+  /** True when no sensor mean changed by more than settleBandKpa between the last window and the window one window-length earlier. */
+  private settled(): boolean {
+    const w = this.cfg.settleWindowS;
+    if (this.hist.length < 2 || this.hist[0].t > this.clock - 3 * w + 1e-9) return false;   // not enough history yet
+    const a = this.mean(w), b = this.mean(w, 2 * w);
+    return a.every((v, i) => Math.abs(v - b[i]) <= this.cfg.settleBandKpa);
   }
 
   private go(s: CtlState) { this.state = s; this.stateT = 0; }
@@ -139,7 +162,9 @@ export class Controller {
   /** Search combined changes of all four zones; returns null if nothing is predicted to help. */
   private makePlan(p: number[]): { s1: Setpoints; pred: number[] } | null {
     const c = this.cfg, s0 = this.setpoints, m = this.margin * c.thresholdKpa;
-    const cand = ZONES.map(z => { const set = new Set<number>(); for (let d = -0.4; d <= 0.2501; d += 0.05) set.add(+clamp(s0[z] + d, c.minSupport, c.maxSupport).toFixed(3)); return [...set]; });
+    // FR-05: never inflate directly under a hotspot. A zone that holds a hotspot may only stay put or deflate.
+    const hotZones = new Set(this.hotspots(p).map(i => SENSORS[i].zone));
+    const cand = ZONES.map(z => { const set = new Set<number>(); const top = hotZones.has(z) ? 0 : 0.2501; for (let d = -0.4; d <= top; d += 0.05) set.add(+clamp(s0[z] + d, c.minSupport, c.maxSupport).toFixed(3)); return [...set]; });
     const costOf = (pred: number[], s1: Setpoints) => {
       let e = 0; for (const v of pred) if (v > m) e += (v - m) ** 2;
       let mv = 0; for (const z of ZONES) mv += Math.abs(s1[z] - s0[z]);

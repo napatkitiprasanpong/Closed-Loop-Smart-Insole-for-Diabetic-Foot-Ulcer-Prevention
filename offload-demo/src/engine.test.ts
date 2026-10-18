@@ -76,7 +76,7 @@ test("unsafe transfer: first plan rejected and reversed, controller learns the s
   const sim = new Simulator(1), ctl = new Controller();
   SCENARIOS.unsafeTransfer(sim);
   const prior = ctl.est.tau;
-  const ev = run(sim, ctl, 20);
+  const ev = run(sim, ctl, 14);   // stop once the second plan is kept; later relax re-tests deliberately lift support again
   assert.ok(ev.some(e => e.kind === "reject"), "expected a rejection");
   assert.ok(ctl.est.tau > prior + 0.15, `learned transfer ${ctl.est.tau}`);
   const plans = ev.filter(e => e.msg.startsWith("Plan"));
@@ -178,4 +178,57 @@ test("temperature rise above calibrated baseline raises risk without moving pres
   const r0 = ctl.step(sim.step(0.1, ctl.setpoints), 0.1).risk[10];
   run(sim, ctl, 25);
   assert.ok(ctl.step(sim.step(0.1, ctl.setpoints), 0.1).risk[10] > r0);
+});
+
+
+// ---------- robustness: slow pneumatics and a simulator that disagrees with the controller's assumptions ----------
+
+/** Seconds a site that was not hot at the start spends above the threshold, plus every KEEP that happened while one was. */
+function robustRun(scn: "heel" | "twoHotspots" | "threeHotspots" | "unsafeTransfer", params: Partial<Simulator["params"]>, seconds: number) {
+  const sim = new Simulator(7, params), ctl = new Controller();
+  SCENARIOS[scn](sim); if (params.transfer !== undefined) sim.params.transfer = params.transfer;
+  const start = sim.steady(), initiallyHot = start.map(v => v > THR), excess0 = start.reduce((a, v) => a + Math.max(0, v - THR), 0);
+  const lim = DEFAULT_CONFIG; let keptWithNewHotspot = 0, inflatedUnderHotspot = 0, outOfLimits = 0;
+  for (let i = 0; i < Math.round(seconds / 0.1); i++) {
+    const before = { ...ctl.setpoints }, frame = sim.step(0.1, ctl.setpoints);
+    const hotZones = new Set(frame.pressure.flatMap((v, k) => (v > THR ? [SENSORS[k].zone] : [])));
+    const r = ctl.step(frame, 0.1), st = sim.steady();
+    const newHotNow = st.some((v, k) => !initiallyHot[k] && v > THR);
+    if (r.events.some(e => e.kind === "keep") && newHotNow) keptWithNewHotspot++;
+    if (r.events.some(e => e.msg.startsWith("Plan"))) for (const z of ZONES) if (hotZones.has(z) && ctl.setpoints[z] > before[z] + 1e-9) inflatedUnderHotspot++;
+    for (const z of ZONES) if (ctl.setpoints[z] < lim.minSupport - 1e-9 || ctl.setpoints[z] > lim.maxSupport + 1e-9) outOfLimits++;
+  }
+  const end = sim.steady(), excess1 = end.reduce((a, v) => a + Math.max(0, v - THR), 0);
+  return { keptWithNewHotspot, inflatedUnderHotspot, outOfLimits, excess0, excess1, endsWithNewHotspot: end.some((v, k) => !initiallyHot[k] && v > THR) };
+}
+
+test("slow pneumatics: the controller waits for pressure to settle instead of verifying too early", () => {
+  // At 0.05 support/s a 0.3 move takes about 6 s, longer than the fixed 2.2 s wait the controller used to rely on.
+  const sim = new Simulator(1, { actuatorRate: 0.05 }), ctl = new Controller();
+  SCENARIOS.threeHotspots(sim);
+  const ev = run(sim, ctl, 60);
+  const firstPlan = ev.find(e => e.msg.startsWith("Plan"))!, firstVerdict = ev.find(e => e.kind === "keep" || e.kind === "reject")!;
+  assert.ok(firstVerdict.t - firstPlan.t > 3, `verdict only ${(firstVerdict.t - firstPlan.t).toFixed(1)} s after the plan`);
+  const r = robustRun("threeHotspots", { actuatorRate: 0.05 }, 60);
+  assert.equal(r.keptWithNewHotspot, 0);
+});
+
+test("gives up waiting after settleMaxS and still decides (never stuck in ADJUST)", () => {
+  const sim = new Simulator(1), ctl = new Controller({ settleBandKpa: 0.01, settleMaxS: 6 });   // a band this tight is never met, so only the timeout can end the wait
+  SCENARIOS.heel(sim);
+  const ev = run(sim, ctl, 25);
+  assert.ok(ev.some(e => e.msg.startsWith("Pressure still drifting")), "expected the timeout message");
+  assert.ok(ev.some(e => e.kind === "keep" || e.kind === "reject"));
+});
+
+test("robustness sweep: model mismatch never breaks the safety invariants", () => {
+  for (const scn of ["heel", "twoHotspots", "threeHotspots", "unsafeTransfer"] as const)
+    for (const transfer of [0.2, 0.6, 1]) for (const sigmaMm of [30, 90]) for (const coupling of [0.5, 1.3]) for (const actuatorRate of [0.05, 0.25]) {
+      const tag = `${scn} transfer=${transfer} sigma=${sigmaMm} coupling=${coupling} rate=${actuatorRate}`;
+      const r = robustRun(scn, { transfer, sigmaMm, coupling, actuatorRate, noise: 0.05 }, 100);
+      assert.equal(r.keptWithNewHotspot, 0, `kept while a new hotspot existed: ${tag}`);
+      assert.equal(r.inflatedUnderHotspot, 0, `inflated directly under a hotspot (FR-05): ${tag}`);
+      assert.equal(r.outOfLimits, 0, `support left its safety limits: ${tag}`);
+      assert.ok(r.excess1 <= r.excess0 + 1, `ended worse than it started (${r.excess0} -> ${r.excess1}): ${tag}`);
+    }
 });
