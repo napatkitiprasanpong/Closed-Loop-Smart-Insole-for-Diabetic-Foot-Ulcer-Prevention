@@ -34,6 +34,10 @@ button:hover{border-color:var(--ac)}button.p{background:var(--ac);color:#fff;bor
     <select id="sSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
     <button class="d" id="bStop">E-STOP</button><button id="bCal">Calibrate baseline</button><button id="bCsv">Export CSV</button><button id="bReset">Reset</button>
    </div></div>
+  <div class="card"><h2>Data source: <span id="srcName">Simulator</span></h2><div class="row">
+    <button id="bReplay">Load CSV replay…</button><input type="file" id="fileReplay" accept=".csv,text/csv" hidden>
+    <button id="bSerial">Connect device (Web Serial)</button></div>
+   <p class="hint">Replay runs the controller on a recorded session (for example one exported here, or logged by the board). Device mode needs Chrome or Edge and the line protocol in <code>src/io/device.ts</code>; it has not been tested on hardware yet.</p></div>
   <div class="card"><h2>Scenarios</h2><div id="scen" class="row"></div>
    <h2>Fault injection</h2><div class="row">
     <select id="fSensor"></select><button id="bDis">Disconnect / reconnect sensor</button>

@@ -33,6 +33,20 @@ Sense  ->  Confirm  ->  Plan  ->  Adjust  ->  Verify  ->  Keep or reverse
 - **Learn:** every attempt, including a rejected one, refines the controller's estimate of bladder effectiveness and load transfer, so the next plan is better.
 - **Adaptive re-tests:** held adjustments are relaxed in small steps with a hysteresis band and increasing waits, so the system does not cycle at the threshold and returns to natural resting pressure when the load is gone.
 
+### Safety monitors
+
+Independent of the planner, the controller watches for conditions that should put the system in a safe state. All limits are prototype settings in `ControllerConfig`, to be set with clinician and bench data.
+
+| Monitor | What it does | Requirement |
+| --- | --- | --- |
+| Activation-time cap (`maxActiveS`, default 600 s) | No zone stays away from neutral longer than this. All zones return to neutral and an alert is raised; it stays until the load is relieved. | SR-04 |
+| Watchdog (`watchdogS`, default 1 s) | A gap between frames longer than this, or `onNoData()` from the host when frames stop entirely, returns every zone to neutral (FAULT). | SR-05 |
+| Plausibility (`pMinKpa`/`pMaxKpa`, `tempMinC`/`tempMaxC`) | A reading outside the range is a fault, not a hotspot. | SR-05 |
+| Stuck sensor (`stuckS`, default 15 s) | A channel reading exactly the same while most others keep changing is a fault. Assumes real ADC noise; set 0 to disable. | SR-05 |
+| Leak detection (`leakBand`, `leakS`) | If the bladder readback drifts away from its setpoint and does not close in, the zone is flagged, all zones go neutral, and the planner keeps that zone at neutral until it holds pressure again. Needs a bladder readback in the frame (`Frame.bladder`); without one this monitor is off. | SR-03 (partly) |
+
+These are tested in simulation only. The leak monitor in particular depends on a bladder pressure sensor that the board does not yet fully support (one I2C header).
+
 ### Results so far (simulation only)
 
 | Case       | Hotspot pressures (kPa), before to after                          | Zones moved             |
@@ -61,14 +75,15 @@ This is better, not solved: a rejected trial plan still exposes a neighbouring s
 
 | Path | Contents |
 | ---- | -------- |
-| `offload-demo/` | TypeScript controller, load-transfer simulator, 20 automated tests, and a web dashboard with scenarios, fault injection and CSV export |
+| `offload-demo/` | TypeScript controller, load-transfer simulator, 38 automated tests, and a web dashboard with scenarios, fault injection, CSV export, CSV replay and a serial-device input |
 | `insole-cad/` | Concept CAD of the insole (5 layers, 4 bladders, sensor pockets, control box): STL parts, SVG layer outlines, `parameters.json` |
-| `esp 32/` | ESP32-S3 controller board design: schematic sheets (PDF and PNG), netlist, BOM, GPIO pin map (`pins.h`) |
+| `esp32/` | ESP32-S3 controller board design: schematic sheets (PDF and PNG), netlist, BOM, GPIO pin map (`pins.h`) |
 | `insole-deck/` | 12-slide pitch deck as SVG slides (`figma-svg/`) and an animated browser presentation (`presentation.html`) |
-| `Smart Diabetic-Foot Insole_ Requirements and Risk Register (draft v0.1).html` | Requirements, safety and risk register (open in a browser) |
-| `Closed-Loop Insole_ Live 3D Control Simulation.html` | Stand-alone 3D control simulation (open in a browser) |
-| `Smart Diabetic-Foot Insole - 3D CAD Viewer.html` | Stand-alone 3D viewer for the CAD (open in a browser) |
+| `requirements-and-risk-register.html` | Requirements, safety and risk register (open in a browser) |
+| `control-simulation-3d.html` | Stand-alone 3D control simulation (open in a browser) |
+| `cad-viewer.html` | Stand-alone 3D viewer for the CAD (open in a browser) |
 | `insole-materials.xlsx` | Materials table |
+| `archive/` | Older versions kept for reference: the 18-slide deck (`insole-deck-18-slides-old.zip`) and an earlier plan-view image |
 
 ## Run the simulation
 
@@ -78,10 +93,17 @@ Requires Node 22.18 or newer.
 cd offload-demo
 npm install
 npm run dev        # dashboard, usually http://localhost:5173
-npm test           # 20 tests on the controller and simulator
+npm test           # 38 tests on the controller, safety monitors, simulator and data input
 npm run typecheck
 npm run build      # static site in dist/
 ```
+
+### Data sources
+
+The dashboard runs on the simulator by default. It can also run the same controller on:
+
+- **CSV replay:** load a session CSV (the dashboard's own export, or a log from the board with the same column names). The controller runs open-loop on the recorded data, so you can see what it would have decided on real bench recordings.
+- **Device over Web Serial** (Chrome or Edge): one JSON line per frame from the board, one JSON line of setpoints back. The protocol is documented in `offload-demo/src/io/device.ts`. The line parser is unit-tested; the port handling has **not** been tested on hardware.
 
 The dashboard lets you click sensors to add load, apply 1, 2 or 3 hotspot scenarios, inject sensor and leak faults, change thresholds and model parameters, and watch the controller states. GitHub Actions runs the typecheck, tests and build on every push.
 
@@ -99,6 +121,7 @@ The schematic has **not** been reviewed by an electronics engineer or built. IC 
 - The load-transfer behavior in the simulator is assumed.
 - Differences from prior work (verified, reversible adjustments, multi-hotspot planning, learning from rejected attempts) are **proposed**. A full literature and patent search has not been done, so novelty is not claimed.
 - The controller only sees the pressure sensors. It cannot see how far a bladder has actually moved, so it infers "settled" from the readings. A gauge pressure sensor per bladder (the board has an I2C header for one) would be a more direct check.
+- The hardware has 6 temperature sensors but the controller keeps a temperature slot for each of the 11 pressure sites; `TEMP_SITES` in `config.ts` maps one to the other and the other 5 slots are empty (no temperature rise is computed there).
 - The control box in the CAD shows 4 valve placeholders, but the board drives 8 valves (fill and vent for each zone). One of the two needs updating.
 - Not for clinical use. Any use on people needs ethics approval and clinical oversight.
 

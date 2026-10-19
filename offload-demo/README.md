@@ -7,7 +7,7 @@ Requires Node 22.18+ (runs TypeScript directly).
 
     npm install
     npm run dev       # opens the dashboard (usually http://localhost:5173)
-    npm test          # 20 tests on the controller and simulator
+    npm test          # 38 tests on the controller, safety monitors, simulator and data input
     npm run typecheck
     npm run build     # static site in dist/, deployable to Vercel / GitHub Pages / Netlify
 
@@ -21,7 +21,13 @@ Requires Node 22.18+ (runs TypeScript directly).
 ## Structure
 - `src/core/`   controller (state machine, risk score, fault handling), config, shared types. No UI or hardware code.
 - `src/sim/`    simulated insole (pressure transfer between zones, noise, temperature, faults) and scenario presets.
-- `src/main.ts` + `index.html`  dashboard: foot map, controls, fault injection, chart, event log, CSV export.
+- `src/io/`     session CSV format (`session.ts`), CSV replay (`replay.ts`), the board's JSON line protocol (`device.ts`) and the Web Serial link (`serial.ts`, untested on hardware).
+- `src/main.ts` + `index.html`  dashboard: foot map, controls, fault injection, chart, event log, CSV export, data-source selector (simulator, CSV replay, device).
+- `src/safety.test.ts`  tests for the safety monitors: watchdog, plausibility, stuck sensor, leak detection, activation-time cap.
+- `src/io.test.ts`  CSV round trip, replay through the controller, device line protocol.
 - `src/engine.test.ts`  behaviour tests: keep, reject + reverse + alert, gait-spike filter, sensor-loss fault, safety limits, slow pneumatics, settle timeout, and a model-mismatch sweep that checks the safety invariants.
+
+## Safety monitors
+Besides the planner's own rules the controller enforces: a maximum activation time per zone (`maxActiveS`), a watchdog on the gap between frames (`watchdogS`, plus `onNoData()` for the host), plausibility and stuck-sensor checks, and leak detection from an optional per-zone bladder readback (`Frame.bladder`). A leaking zone is held at neutral and kept out of plans until it holds pressure again (`clearLeak(zone)` lets a technician acknowledge a repair). The simulator now closes each zone's valve once it reaches its target, as the board does, so a leak is no longer silently refilled.
 
 All thresholds and weights are illustrative prototype settings, not clinically validated values.

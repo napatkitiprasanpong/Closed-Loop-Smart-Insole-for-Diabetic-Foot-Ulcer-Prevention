@@ -5,7 +5,11 @@ export const ZONE_NAMES: Record<Zone, string> = { F: "forefoot", M: "medial", L:
 export interface Sensor { id: number; name: string; x: number; y: number; zone: Zone; baseKpa: number }
 
 /** One reading from any data source (simulator, replay file, or hardware). NaN = sensor lost. */
-export interface Frame { t: number; pressure: number[]; temp: number[] }
+export interface Frame {
+  t: number; pressure: number[]; temp: number[];
+  /** Optional bladder support read back per zone (0 to 1, same scale as Setpoints). Enables leak detection when present. */
+  bladder?: Partial<Record<Zone, number>>;
+}
 
 /** Support level per pneumatic zone: 0 = fully deflated, 0.5 = neutral, 1 = fully inflated. */
 export type Setpoints = Record<Zone, number>;

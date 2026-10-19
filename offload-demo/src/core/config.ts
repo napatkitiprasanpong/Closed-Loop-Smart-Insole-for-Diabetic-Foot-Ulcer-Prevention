@@ -47,6 +47,18 @@ export interface ControllerConfig {
   wp: number; wt: number; wd: number;  // risk-score weights
   dtRef: number;          // temperature rise (°C) that counts as full temperature risk
   durRef: number;         // seconds above threshold that count as full duration risk
+  // ---- safety limits (SR-04, SR-05, watchdog, leak detection). All values are prototype settings, TBD with clinician and bench data.
+  maxActiveS: number;     // SR-04: longest a zone may stay away from neutral. After this the system returns to neutral and alerts (0 = off)
+  watchdogS: number;      // longest allowed gap between frames; a longer gap is treated as lost data (0 = off)
+  pMinKpa: number;        // SR-05: a pressure reading outside [pMinKpa, pMaxKpa] is implausible and puts the system in FAULT
+  pMaxKpa: number;
+  tempMinC: number;       // SR-05: a finite temperature reading outside this range is implausible
+  tempMaxC: number;
+  stuckS: number;         // SR-05: a sensor reading exactly the same for this long while most others keep changing is stuck (0 = off; assumes real ADC noise)
+  leakBand: number;       // bladder readback this far from its setpoint (and not closing in) counts as a leak
+  leakS: number;          // ... for this long (0 = off)
+  alertHoldS: number;     // after an activation-time alert, the alert cannot clear for this long (lets the zones settle back to neutral first)
+  leakClearS: number;     // a flagged zone is cleared again after reading within the band for this long
 }
 
 export const DEFAULT_CONFIG: ControllerConfig = {
@@ -55,4 +67,9 @@ export const DEFAULT_CONFIG: ControllerConfig = {
   marginRatio: 0.92, improveMin: 0.2, moveCost: 300, priorOwn: 0.8, priorTransfer: 0.4, sigmaMm: 45, stiffGain: 1, relaxStepMax: 0.25,
   minSupport: 0.1, maxSupport: 0.9, holdS: 6, holdMaxS: 64, probeIntervalS: 2, releaseRatio: 0.85, reliefStep: 0.1,
   wp: 0.6, wt: 0.2, wd: 0.2, dtRef: 2.5, durRef: 30,
+  maxActiveS: 600, watchdogS: 1, pMinKpa: -20, pMaxKpa: 1500, tempMinC: 10, tempMaxC: 50, stuckS: 15,
+  leakBand: 0.12, leakS: 6, leakClearS: 5, alertHoldS: 10,
 };
+
+/** Which pressure sensors have a temperature sensor beside them in the hardware design (6 NTCs, same order as the board). */
+export const TEMP_SITES: number[] = [0, 2, 4, 6, 8, 9];

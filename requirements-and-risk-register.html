@@ -1,0 +1,508 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}</style><style>:root{color-scheme:light dark;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}}:root[data-theme="dark"]{color-scheme:dark;--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}:root[data-theme="light"]{color-scheme:light}@media print{:root,:root[data-theme="dark"]{color-scheme:light;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}}body{background:var(--md-bg);color:var(--md-text);max-width:720px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:10px;font:14px/1.55 -apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;overflow-wrap:break-word}body>:first-child{margin-top:0}h1,h2,h3,h4,h5,h6{margin:6px 0 0;line-height:1.25;font-weight:600;text-wrap:balance}h1{font-size:1.35em}h2{font-size:1.15em;color:var(--md-muted)}h3,h4,h5,h6{font-size:1em}p,ul,ol,blockquote,table,pre,hr{margin:0}strong{font-weight:600}a{color:var(--md-link);text-decoration:none}a:hover{text-decoration:underline}ul,ol{display:flex;flex-direction:column;gap:6px;padding-left:22px}ul{list-style:disc}ol{list-style:decimal}:is(li,td,th)>*+:is(p,ul,ol,blockquote){margin-top:6px}blockquote{display:flex;flex-direction:column;gap:10px;border-left:2px solid var(--md-rule);padding-left:10px;color:var(--md-muted)}:not(pre)>code{background:var(--md-fill);padding:1px 3px;border-radius:4px;font:.92em 'SF Mono',ui-monospace,Menlo,Consolas,monospace}a>code{background:none;color:inherit}pre{background:var(--md-fill);padding:10px 12px;border-radius:6px;overflow-x:auto;font:12px/1.5 'SF Mono',ui-monospace,Menlo,Consolas,monospace;margin-block:4px}pre code{background:none;padding:0;font:inherit}table{width:100%;border-collapse:separate;border-spacing:2px;font:inherit}th,td{padding:6px 8px;border-radius:3px;text-align:left;vertical-align:top}th{background:var(--md-fill-strong);font-weight:600}td{background:var(--md-fill)}:is(th,td) :not(pre)>code{background:transparent}hr{border:0;border-top:1px solid var(--md-rule-strong);margin-block:10px}img{max-width:100%;height:auto;border-radius:4px}</style>
+</head><body>
+<h1>Closed-Loop Smart Diabetic-Foot Prevention System</h1>
+<h2>Requirements, safety and risk register (draft v0.1 for review)</h2>
+<p><strong>Status of this document:</strong> a working draft for review by a supervisor, clinician or engineer. Items marked <strong>TBD</strong> need a decision from a reviewer. Numeric targets are <strong>proposed prototype targets</strong>, not clinically validated values.</p>
+<hr>
+<h2>1. Purpose and scope</h2>
+<p>A laboratory prototype of a sensorized insole that detects sustained plantar-pressure hotspots, adjusts pneumatic support to redistribute pressure, measures again, and keeps or reverses the change.</p>
+<p><strong>In scope (3-month prototype):</strong> bench testing of sensing, pneumatic actuation, closed-loop control, dashboard and data logging, aimed at <strong>ulcer prevention</strong>.</p>
+<p><strong>Out of scope for this phase:</strong> treatment of existing wounds, testing on active wounds, electrical stimulation, drug delivery, any diagnostic or clinical-effectiveness claim, and any use on people before ethics approval.</p>
+<p><strong>Claim to be used:</strong> <em>&quot;Existing diabetic-foot technologies generally monitor plantar pressure or temperature and provide warnings. This project investigates automatic, feedback-controlled pressure redistribution using a multimodal sensorized insole.&quot;</em></p>
+<hr>
+<h2>2. Current status (honest summary)</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Control logic (detect, confirm, adjust, verify, keep or reverse, alert)</td>
+<td>Built and unit-tested <strong>in simulation only</strong></td>
+</tr>
+<tr>
+<td>Dashboard (live map, parameters, fault injection, CSV export)</td>
+<td>Built; runs on simulated data</td>
+</tr>
+<tr>
+<td>Insole CAD (layers, bladders, sensor pockets, control box)</td>
+<td>Concept model; not validated by any physical test</td>
+</tr>
+<tr>
+<td>Controller board</td>
+<td>Schematic-level design; not reviewed by an electronics engineer; not built</td>
+</tr>
+<tr>
+<td>Sensors, bladders, pump, valves</td>
+<td><strong>Nothing tested physically yet</strong></td>
+</tr>
+<tr>
+<td>Clinical input, ethics plan</td>
+<td>Not started</td>
+</tr>
+</tbody>
+</table>
+<p>The simulation's pressure-transfer behavior is an <strong>assumption</strong>. Whether real bladders behave this way is the central thing the bench tests must establish.</p>
+<hr>
+<h2>3. Functional requirements</h2>
+<p>Priority: <strong>M</strong> = must have for the prototype, <strong>S</strong> = should have. Verification: <strong>T</strong> = test, <strong>D</strong> = demonstration, <strong>I</strong> = inspection.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requirement</th>
+<th>Proposed target</th>
+<th>Pri</th>
+<th>Verify</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FR-01</td>
+<td>Measure plantar pressure at multiple sites</td>
+<td>8–16 sites (11 in current design)</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-02</td>
+<td>Measure skin temperature at multiple sites</td>
+<td>4–8 sites (6 in current design)</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-03</td>
+<td>Detect a sustained high-pressure region and ignore normal short gait events</td>
+<td>Persistence check; time <strong>TBD</strong> with clinician</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-04</td>
+<td>Control independent pneumatic support zones</td>
+<td>3–4 zones (4 in current design)</td>
+<td>M</td>
+<td>D</td>
+</tr>
+<tr>
+<td>FR-05</td>
+<td>Offload a hotspot by deflating under it or inflating around it, never by inflating directly under it</td>
+<td>As described in the plan</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-06</td>
+<td>After each adjustment, measure again and <strong>keep, reverse or modify</strong> it</td>
+<td>Verify window: stabilise, then re-measure</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-07</td>
+<td>Check all non-target regions and reject an adjustment that creates a comparable hotspot elsewhere</td>
+<td>Reject if any other region exceeds the threshold</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-08</td>
+<td>Alert the user when safe redistribution cannot be achieved</td>
+<td>Visual alert (buzzer optional)</td>
+<td>M</td>
+<td>D</td>
+</tr>
+<tr>
+<td>FR-09</td>
+<td>Record a patient-specific baseline before operation</td>
+<td>Per-site baseline; per-patient thresholds <strong>TBD</strong></td>
+<td>S</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-10</td>
+<td>Combine pressure, temperature rise and loading duration into an explainable risk score</td>
+<td>Adjustable weights; pressure drives immediate action, temperature only raises long-term risk or alerts</td>
+<td>S</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-11</td>
+<td>Display pressure map, temperature, risk, actuator status and controller state</td>
+<td>Live dashboard</td>
+<td>M</td>
+<td>D</td>
+</tr>
+<tr>
+<td>FR-12</td>
+<td>Store session data for later analysis</td>
+<td>CSV export of all channels, commands and states</td>
+<td>M</td>
+<td>I</td>
+</tr>
+<tr>
+<td>FR-13</td>
+<td>Report offloading effectiveness</td>
+<td>(before − after) / before × 100</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-14</td>
+<td>Run continuously and survive repeated cycling</td>
+<td>2–4 hours continuous; at least 1,000 inflate/deflate cycles</td>
+<td>M</td>
+<td>T</td>
+</tr>
+<tr>
+<td>FR-15</td>
+<td>Repeatable measurements</td>
+<td>Each bench condition repeated at least 5 times</td>
+<td>M</td>
+<td>T</td>
+</tr>
+</tbody>
+</table>
+<h3>Performance targets (proposed, to be confirmed)</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Target</th>
+<th>Value</th>
+<th>Verify</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PR-01</td>
+<td>Sampling rate per channel</td>
+<td>at least 20 Hz</td>
+<td>T</td>
+</tr>
+<tr>
+<td>PR-02</td>
+<td>Time from sustained hotspot to adjustment starting</td>
+<td>persistence time + under 1 s</td>
+<td>T</td>
+</tr>
+<tr>
+<td>PR-03</td>
+<td>Pressure-sensor repeatability (same load, same site)</td>
+<td><strong>TBD</strong> after sensor tests</td>
+<td>T</td>
+</tr>
+<tr>
+<td>PR-04</td>
+<td>Leak rate of a bladder held at working pressure</td>
+<td><strong>TBD</strong> after bladder tests</td>
+<td>T</td>
+</tr>
+<tr>
+<td>PR-05</td>
+<td>Insole thickness including bladders</td>
+<td>current CAD: 6.6 mm; target <strong>TBD</strong> with clinician</td>
+<td>I</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>4. Safety requirements</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requirement</th>
+<th>Verify</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SR-01</td>
+<td>A <strong>hardware E-stop</strong> cuts actuator power independently of firmware</td>
+<td>T</td>
+</tr>
+<tr>
+<td>SR-02</td>
+<td>All pump and valve outputs are off at power-up and reset</td>
+<td>T</td>
+</tr>
+<tr>
+<td>SR-03</td>
+<td>A <strong>maximum bladder pressure</strong> is enforced twice: in firmware and by a mechanical relief valve. The limit is <strong>TBD</strong>, set after bladder burst/leak tests and clinician input</td>
+<td>T</td>
+</tr>
+<tr>
+<td>SR-04</td>
+<td>A <strong>maximum activation time</strong> per adjustment, after which the system returns to a safe state</td>
+<td>T</td>
+</tr>
+<tr>
+<td>SR-05</td>
+<td>Loss or implausible reading of any sensor puts the system in a fault state and stops further adjustment</td>
+<td>T</td>
+</tr>
+<tr>
+<td>SR-06</td>
+<td>The controller never makes an adjustment that raises any region above the threshold; if it does, it reverses and alerts</td>
+<td>T</td>
+</tr>
+<tr>
+<td>SR-07</td>
+<td>Bench phase uses a current-limited supply or a protected battery module; no bare lithium cells</td>
+<td>I</td>
+</tr>
+<tr>
+<td>SR-08</td>
+<td>No use on human subjects until ethics approval is in place and clinical oversight is arranged</td>
+<td>I</td>
+</tr>
+<tr>
+<td>SR-09</td>
+<td>Every threshold shown in the software is labeled <strong>not diagnostic and not clinically validated</strong></td>
+<td>I</td>
+</tr>
+<tr>
+<td>SR-10</td>
+<td>Materials touching skin in any future human use must be biocompatible and certified</td>
+<td>I</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>5. Milestone acceptance criteria</h2>
+<table>
+<thead>
+<tr>
+<th>Milestone</th>
+<th>Pass when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Month 1</td>
+<td>All sensor locations can be measured and displayed live</td>
+</tr>
+<tr>
+<td>Month 2</td>
+<td>The system detects a simulated hotspot, adjusts support automatically, and verifies the result</td>
+</tr>
+<tr>
+<td>Month 3</td>
+<td>Bench validation complete: accuracy, repeatability, drift, response time, leakage, false activation, 1,000+ cycles, and a documented safety review</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>6. Risk register</h2>
+<p>L = likelihood, I = impact (Low / Medium / High).</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Risk</th>
+<th>L</th>
+<th>I</th>
+<th>Mitigation</th>
+<th>How we will know</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R-01</td>
+<td><strong>Core idea does not work physically:</strong> deflating a bladder does not reduce pressure at the target without creating another hotspot</td>
+<td>M</td>
+<td>H</td>
+<td>Test early with one bladder and one sensor on a bench rig; fall back to alert plus manual adjustment if needed</td>
+<td>Offloading effectiveness and non-target pressures in bench tests</td>
+</tr>
+<tr>
+<td>R-02</td>
+<td>Simulation assumptions (pressure transfer, bladder effectiveness) do not match reality</td>
+<td>H</td>
+<td>M</td>
+<td>Replace simulated parameters with measured ones; keep the simulator only for demos</td>
+<td>Compare simulated and measured responses</td>
+</tr>
+<tr>
+<td>R-03</td>
+<td>Bladders leak or fail under repeated cycling</td>
+<td>H</td>
+<td>H</td>
+<td>Try heat-sealed TPU film and cast silicone; leak test early; 1,000-cycle test</td>
+<td>Leak rate; cycles to failure</td>
+</tr>
+<tr>
+<td>R-04</td>
+<td>Pressure sensors drift, show hysteresis, or are inaccurate in a curved, flexing insole</td>
+<td>H</td>
+<td>M</td>
+<td>Sensor characterization (Week 2); calibrate against known loads; treat readings as relative</td>
+<td>Calibration curves, drift data</td>
+</tr>
+<tr>
+<td>R-05</td>
+<td>Insole too thick or stiff to be comfortable</td>
+<td>M</td>
+<td>M</td>
+<td>Thin layers, flexible materials; clinician feedback on acceptable thickness</td>
+<td>Thickness and flexibility tests</td>
+</tr>
+<tr>
+<td>R-06</td>
+<td>Control oscillates (repeated adjust/re-test cycles) or false-triggers</td>
+<td>M</td>
+<td>M</td>
+<td>Tune persistence, hold and re-test times on real data; test false activation</td>
+<td>Event counts in long runs</td>
+</tr>
+<tr>
+<td>R-07</td>
+<td>Over-inflation or prolonged loading injures skin in future human use</td>
+<td>L</td>
+<td>H</td>
+<td>Pressure and time limits (SR-03, SR-04), relief valve, no human use in this phase</td>
+<td>Safety review before any human test</td>
+</tr>
+<tr>
+<td>R-08</td>
+<td>Electrical hazard or ESD through foot-contact wiring; battery hazard</td>
+<td>L</td>
+<td>H</td>
+<td>Low-voltage design, protected battery module, ESD protection at connector, isolation review</td>
+<td>Design review</td>
+</tr>
+<tr>
+<td>R-09</td>
+<td>Pump noise, power draw or heat unacceptable for wearable use</td>
+<td>M</td>
+<td>M</td>
+<td>Measure noise and power in actuator characterization (Week 5); tethered pump accepted for v1</td>
+<td>Measured values</td>
+</tr>
+<tr>
+<td>R-10</td>
+<td>Tubing and wiring route poorly through the insole or shoe</td>
+<td>M</td>
+<td>M</td>
+<td>Protect and shorten routes; redesign in Week 8</td>
+<td>Mechanical inspection</td>
+</tr>
+<tr>
+<td>R-11</td>
+<td>Custom board has design errors</td>
+<td>M</td>
+<td>M</td>
+<td>Review by an electronics engineer; prototype first on a dev board and breadboard</td>
+<td>Review sign-off; bring-up tests</td>
+</tr>
+<tr>
+<td>R-12</td>
+<td>Ethics approval takes longer than the schedule allows</td>
+<td>M</td>
+<td>M</td>
+<td>Plan bench-only work first; start the ethics plan in Week 1</td>
+<td>Approval status</td>
+</tr>
+<tr>
+<td>R-13</td>
+<td>Claims go beyond the evidence</td>
+<td>M</td>
+<td>H</td>
+<td>Use the project statement in section 1; label all thresholds as non-diagnostic</td>
+<td>Document review</td>
+</tr>
+<tr>
+<td>R-14</td>
+<td>No clinical input, so wrong target regions or thresholds</td>
+<td>M</td>
+<td>H</td>
+<td>Meet a diabetic-foot specialist or physical therapist in Week 1</td>
+<td>Meeting notes</td>
+</tr>
+<tr>
+<td>R-15</td>
+<td>Skills gap in electronics and mechanical build</td>
+<td>H</td>
+<td>M</td>
+<td>Staged build; reviewer or lab technician support; start with the small first kit</td>
+<td>Milestone progress</td>
+</tr>
+<tr>
+<td>R-16</td>
+<td>Parts lead time or cost slips the three-month schedule</td>
+<td>M</td>
+<td>M</td>
+<td>Order the small kit first; keep alternates for pump and valves</td>
+<td>Order tracking</td>
+</tr>
+<tr>
+<td>R-17</td>
+<td>Future human data raises privacy concerns</td>
+<td>L</td>
+<td>M</td>
+<td>Anonymize data; define storage and consent in the ethics plan</td>
+<td>Ethics plan</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>7. Assumptions and open questions for the reviewer</h2>
+<p><strong>Assumptions used so far (all adjustable and unvalidated):</strong></p>
+<ul>
+<li>A hotspot threshold of 400 kPa, persistence of 2 s, and deflation steps of 35% then 20% are demo values.</li>
+<li>Neighbouring zones receive a share of the pressure removed from a deflated zone; the coefficient is invented for the simulation.</li>
+<li>Fill and vent valves are normally closed, so bladders hold pressure when power is lost.</li>
+<li>Temperature sensing uses 10 kΩ thermistors; the pump and valves are assumed to be 5 V parts.</li>
+</ul>
+<p><strong>Questions for a clinician or diabetic-foot specialist:</strong></p>
+<ol>
+<li>Which foot regions are highest priority for a first prototype?</li>
+<li>What pressure and duration patterns would you consider worth acting on?</li>
+<li>What temperature difference between sites is meaningful?</li>
+<li>What insole thickness and stiffness would patients tolerate?</li>
+<li>What would make you trust, or distrust, a device that adjusts support automatically?</li>
+<li>What pressure should a bladder never exceed against the foot?</li>
+<li>What would be required before any test on people?</li>
+</ol>
+<p><strong>Questions for an electronics or mechanical reviewer:</strong></p>
+<ol>
+<li>Are the board's power, actuator and sensing sections sound? Please check IC pin numbers against datasheets.</li>
+<li>Is the 2.5 A actuator rail appropriate for the chosen pump and valves?</li>
+<li>Is the internal ADC accurate enough, or is an external ADC needed?</li>
+<li>Which bladder construction is most likely to meet the leak and cycling targets?</li>
+</ol>
+<hr>
+<h2>8. Existing artifacts</h2>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Supports</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Interactive web demo and the offload-demo project (controller, simulator, tests)</td>
+<td>FR-03 to FR-08, FR-10 to FR-13, SR-05, SR-06 (simulation only)</td>
+</tr>
+<tr>
+<td>3D CAD model and layer outlines</td>
+<td>FR-04, PR-05, mechanical design</td>
+</tr>
+<tr>
+<td>Materials table</td>
+<td>Bladder and layer material choices, R-03, R-05</td>
+</tr>
+<tr>
+<td>ESP32-S3 board schematic, netlist, BOM, pin map</td>
+<td>FR-01, FR-02, FR-04, SR-01, SR-02 (design only)</td>
+</tr>
+</tbody>
+</table>
+
+</body></html>

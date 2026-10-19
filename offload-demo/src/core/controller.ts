@@ -50,6 +50,16 @@ export class Controller {
   private margin: number;   // planning margin; tightens after each rejected plan, resets for a new episode
   private risk: number[] = SENSORS.map(() => 0);
   private hist: { t: number; p: number[] }[] = [];   // recent readings, used to tell when pressures have stopped changing
+  // safety monitors
+  private activeT: Record<Zone, number> = { F: 0, M: 0, L: 0, H: 0 };   // SR-04: time each zone has continuously been away from neutral
+  private lastVal: number[] = []; private sameT: number[] = [];          // stuck-sensor detection
+  private lastCmd: Record<Zone, number> = { F: NEUTRAL, M: NEUTRAL, L: NEUTRAL, H: NEUTRAL };
+  private leakBest: Record<Zone, number> = { F: 0, M: 0, L: 0, H: 0 };
+  private leakT: Record<Zone, number> = { F: 0, M: 0, L: 0, H: 0 };
+  private leakOk: Record<Zone, number> = { F: 0, M: 0, L: 0, H: 0 };
+  /** Zones currently flagged as leaking. The planner keeps them at neutral until they read normally again. */
+  leakZones = new Set<Zone>();
+  private alertT = 0;
 
   constructor(cfg: Partial<ControllerConfig> = {}) {
     this.cfg = { ...DEFAULT_CONFIG, ...cfg };
@@ -68,17 +78,21 @@ export class Controller {
     const p = frame.pressure, c = this.cfg;
     let verification: Verification | undefined;
 
-    if (p.some(v => !Number.isFinite(v))) {
-      if (this.state !== "FAULT") {
-        this.neutralise(); this.tgt = -1; this.attempt = 0; this.plan = undefined; this.probeZone = null; this.quiet = 0; this.resetHold(); this.hist = []; this.go("FAULT");
-        log("fault", "Sensor reading lost. All zones returned to neutral support.");
-      }
+    if (c.watchdogS > 0 && dt > c.watchdogS) {
+      if (this.state !== "FAULT") this.enterFault(`Watchdog: no data for ${dt.toFixed(1)} s. All zones returned to neutral support.`, log);
+      return this.result(events);
+    }
+    const bad = p.some(v => !Number.isFinite(v)) ? "Sensor reading lost. All zones returned to neutral support." : this.implausible(frame, dt);
+    if (bad) {
+      if (this.state !== "FAULT") this.enterFault(bad, log);
       return this.result(events);
     }
     if (this.state === "FAULT") { this.go("MONITOR"); log("info", "Sensors recovered. Monitoring resumed."); }
 
     this.hist.push({ t: this.clock, p: p.slice() });
     while (this.hist.length > 1 && this.hist[0].t < this.clock - 3 * c.settleWindowS - dt) this.hist.shift();
+
+    if (this.checkLeaks(frame, dt, log) || this.checkActiveTime(dt, log)) return this.result(events);
 
     const lvl = 0.97 * c.thresholdKpa;   // hold band just under the trigger level, so a sensor hovering at the threshold counts as still high
     p.forEach((v, i) => { this.dur[i] = v > lvl ? this.dur[i] + dt : Math.max(0, this.dur[i] - dt); });
@@ -121,12 +135,82 @@ export class Controller {
         if (this.stateT >= c.stabilizeS + c.verifyS && (this.settled() || this.stateT >= c.settleMaxS)) this.finishProbe(this.mean(c.verifyS), log);
         break;
       case "ALERT":
+        if (this.alertT > 0) { this.alertT -= dt; break; }
         if (p.every(v => v <= c.thresholdKpa)) { this.attempt = 0; this.tgt = -1; this.resetHold(); this.go("MONITOR"); log("info", "Load cleared. Monitoring resumed."); }
         break;
     }
     return this.result(events, verification);
   }
 
+
+  /** Put every zone at neutral and drop any plan in progress. */
+  private safeState() {
+    this.neutralise(); this.tgt = -1; this.attempt = 0; this.plan = undefined; this.probeZone = null; this.quiet = 0; this.resetHold(); this.hist = [];
+    for (const z of ZONES) this.activeT[z] = 0;
+    this.alertT = 0;
+  }
+
+  private enterFault(msg: string, log: Log) { this.safeState(); this.go("FAULT"); log("fault", msg); }
+
+  /** Host/technician acknowledgement: the leak in this zone has been repaired, allow it to be used again. */
+  clearLeak(z: Zone) { this.leakZones.delete(z); this.leakT[z] = 0; this.leakOk[z] = 0; this.leakBest[z] = Infinity; }
+
+  /** Called by the host when frames stop arriving at all (the step() gap check cannot run without a frame). */
+  onNoData(): StepResult {
+    const events: LogEvent[] = [];
+    if (this.state !== "FAULT") this.enterFault("Watchdog: data stopped. All zones returned to neutral support.", (kind, msg) => events.push({ t: +this.clock.toFixed(2), kind, msg }));
+    return this.result(events);
+  }
+
+  /** SR-05: reading out of range, or a sensor frozen while the others keep moving. Returns a message, or null if all readings are plausible. */
+  private implausible(f: Frame, dt: number): string | null {
+    const c = this.cfg, p = f.pressure;
+    for (let i = 0; i < p.length; i++) if (p[i] < c.pMinKpa || p[i] > c.pMaxKpa) return `Implausible reading at ${SENSORS[i].name} (${Math.round(p[i])} kPa). All zones returned to neutral support.`;
+    for (let i = 0; i < f.temp.length; i++) { const v = f.temp[i]; if (Number.isFinite(v) && (v < c.tempMinC || v > c.tempMaxC)) return `Implausible temperature at ${SENSORS[i]?.name ?? "site " + i} (${v.toFixed(1)} °C). All zones returned to neutral support.`; }
+    if (c.stuckS <= 0) return null;
+    if (this.lastVal.length !== p.length) { this.lastVal = p.slice(); this.sameT = p.map(() => 0); return null; }
+    p.forEach((v, i) => { this.sameT[i] = v === this.lastVal[i] ? this.sameT[i] + dt : 0; this.lastVal[i] = v; });
+    const alive = this.sameT.filter(t => t < 1).length;
+    if (alive >= 3) for (let i = 0; i < p.length; i++) if (this.sameT[i] >= c.stuckS) return `Sensor stuck: ${SENSORS[i].name} has not changed for ${Math.round(this.sameT[i])} s while others vary. All zones returned to neutral support.`;
+    return null;
+  }
+
+  /** Leak detection from bladder readback (only when the frame carries it). Returns true if it just raised an alert. */
+  private checkLeaks(f: Frame, dt: number, log: Log): boolean {
+    const c = this.cfg; if (!f.bladder || c.leakS <= 0) return false;
+    let tripped: Zone | null = null;
+    for (const z of ZONES) {
+      const rb = f.bladder[z]; if (rb === undefined || !Number.isFinite(rb)) continue;
+      const sp = this.setpoints[z], dev = Math.abs(rb - sp);
+      if (Math.abs(sp - this.lastCmd[z]) > 1e-9) { this.lastCmd[z] = sp; this.leakBest[z] = dev; this.leakT[z] = 0; this.leakOk[z] = 0; continue; }
+      if (dev < this.leakBest[z] - 0.01) { this.leakBest[z] = dev; this.leakT[z] = 0; }   // still closing in on the target: pneumatics are just slow
+      else if (dev > c.leakBand) this.leakT[z] += dt; else { this.leakT[z] = 0; this.leakBest[z] = Math.min(this.leakBest[z], dev); }
+      this.leakOk[z] = dev <= c.leakBand ? this.leakOk[z] + dt : 0;
+      if (this.leakZones.has(z)) {
+        if (this.leakOk[z] >= c.leakClearS) { this.leakZones.delete(z); this.leakT[z] = 0; log("info", `Leak cleared: ${ZONE_NAMES[z]} zone reads normally again.`); }
+      } else if (this.leakT[z] >= c.leakS) tripped = z;
+    }
+    if (tripped === null) return false;
+    const cmd = this.setpoints[tripped];
+    this.leakZones.add(tripped); this.safeState(); this.go("ALERT");
+    for (const z of ZONES) { this.lastCmd[z] = this.setpoints[z]; this.leakBest[z] = Infinity; this.leakT[z] = 0; this.leakOk[z] = 0; }
+    log("alert", `ALERT: leak suspected in the ${ZONE_NAMES[tripped]} zone (support reads ${pct(f.bladder[tripped] as number)}, commanded ${pct(cmd)}). All zones returned to neutral; this zone will not be used until it holds pressure.`);
+    return true;
+  }
+
+  /** SR-04: no zone stays away from neutral longer than maxActiveS. Returns true if it just raised an alert. */
+  private checkActiveTime(dt: number, log: Log): boolean {
+    const c = this.cfg; if (c.maxActiveS <= 0) return false;
+    let over: Zone | null = null;
+    for (const z of ZONES) {
+      this.activeT[z] = Math.abs(this.setpoints[z] - NEUTRAL) > 1e-9 ? this.activeT[z] + dt : 0;
+      if (this.activeT[z] >= c.maxActiveS) over = z;
+    }
+    if (over === null) return false;
+    this.safeState(); this.go("ALERT"); this.alertT = c.alertHoldS;
+    log("alert", `ALERT: the ${ZONE_NAMES[over]} zone was held away from neutral for ${c.maxActiveS} s (maximum). All zones returned to neutral; user/clinician notified. Relieve the load to resume.`);
+    return true;
+  }
 
   /** Mean reading per sensor over the last `w` seconds (smooths sensor noise before a keep/reject decision). */
   private mean(w: number, back = 0): number[] {
@@ -164,7 +248,7 @@ export class Controller {
     const c = this.cfg, s0 = this.setpoints, m = this.margin * c.thresholdKpa;
     // FR-05: never inflate directly under a hotspot. A zone that holds a hotspot may only stay put or deflate.
     const hotZones = new Set(this.hotspots(p).map(i => SENSORS[i].zone));
-    const cand = ZONES.map(z => { const set = new Set<number>(); const top = hotZones.has(z) ? 0 : 0.2501; for (let d = -0.4; d <= top; d += 0.05) set.add(+clamp(s0[z] + d, c.minSupport, c.maxSupport).toFixed(3)); return [...set]; });
+    const cand = ZONES.map(z => { if (this.leakZones.has(z)) return [s0[z]]; const set = new Set<number>(); const top = hotZones.has(z) ? 0 : 0.2501; for (let d = -0.4; d <= top; d += 0.05) set.add(+clamp(s0[z] + d, c.minSupport, c.maxSupport).toFixed(3)); return [...set]; });
     const costOf = (pred: number[], s1: Setpoints) => {
       let e = 0; for (const v of pred) if (v > m) e += (v - m) ** 2;
       let mv = 0; for (const z of ZONES) mv += Math.abs(s1[z] - s0[z]);

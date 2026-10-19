@@ -33,6 +33,9 @@ export class Simulator {
   disconnected = new Set<number>();
   leaking = new Set<Zone>();
   support: Setpoints = { F: NEUTRAL, M: NEUTRAL, L: NEUTRAL, H: NEUTRAL };
+  /** Like the real board: valves close once a zone reaches its target, so a leak is not silently refilled. */
+  private cmd: Setpoints = { F: NEUTRAL, M: NEUTRAL, L: NEUTRAL, H: NEUTRAL };
+  private moving: Record<Zone, boolean> = { F: false, M: false, L: false, H: false };
   private p = SENSORS.map(s => s.baseKpa);
   private temp = SENSORS.map(() => 32);
   private transients: { i: number; amount: number; left: number }[] = [];
@@ -62,8 +65,12 @@ export class Simulator {
     const q = this.params;
     this.t += dt;
     for (const z of ZONES) {
-      const d = sp[z] - this.support[z];
-      this.support[z] += Math.max(-q.actuatorRate * dt, Math.min(q.actuatorRate * dt, d));
+      if (sp[z] !== this.cmd[z]) { this.cmd[z] = sp[z]; this.moving[z] = true; }
+      if (this.moving[z]) {
+        const d = sp[z] - this.support[z];
+        this.support[z] += Math.max(-q.actuatorRate * dt, Math.min(q.actuatorRate * dt, d));
+        if (Math.abs(sp[z] - this.support[z]) < 1e-12) this.moving[z] = false;
+      }
       if (this.leaking.has(z)) this.support[z] = Math.max(0, this.support[z] - q.leakRate * dt);
     }
     for (const tr of this.transients) tr.left -= dt;
@@ -74,6 +81,6 @@ export class Simulator {
       this.temp[i] += (tt - this.temp[i]) * dt / 20;
     });
     this.transients = this.transients.filter(x => x.left > 0);
-    return { t: this.t, pressure: this.p.map((v, i) => (this.disconnected.has(i) ? NaN : v)), temp: this.temp.map(v => v + (this.rnd() - 0.5) * 0.1) };
+    return { t: this.t, pressure: this.p.map((v, i) => (this.disconnected.has(i) ? NaN : v)), temp: this.temp.map(v => v + (this.rnd() - 0.5) * 0.1), bladder: { ...this.support } };
   }
 }

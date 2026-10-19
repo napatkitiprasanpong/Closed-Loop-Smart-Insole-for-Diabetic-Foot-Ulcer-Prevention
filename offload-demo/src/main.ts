@@ -5,6 +5,9 @@ import type { Frame, LogEvent, Setpoints, Zone } from "./core/types.ts";
 import { Simulator } from "./sim/simulator.ts";
 import { SCENARIOS } from "./sim/scenarios.ts";
 import type { ScenarioName } from "./sim/scenarios.ts";
+import { CSV_HEAD, csvRow } from "./io/session.ts";
+import { parseCsv, ReplaySource } from "./io/replay.ts";
+import { SerialLink } from "./io/serial.ts";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const NS = "http://www.w3.org/2000/svg";
@@ -24,6 +27,9 @@ let paused = false, estop = false, speed = 1, acc = 0, simT = 0;
 let script: { at: number; fn: () => void }[] | null = null;
 let hist: number[] = [];
 let rows: string[] = [];
+let replay: ReplaySource | null = null, link: SerialLink | null = null;   // data source: simulator unless one of these is set
+let lastFrameT = 0;
+const supportOf = (z: Zone) => frame.bladder?.[z] ?? sim.support[z];
 
 // ---------- foot map ----------
 const foot = $("foot") as unknown as SVGSVGElement;
@@ -67,7 +73,7 @@ $("bDis").onclick = () => {
 };
 $("bLeak").onclick = () => {
   const z = ($("fZone") as HTMLSelectElement).value as Zone;
-  if (sim.leaking.delete(z)) note(`Leak stopped in ${ZONE_NAMES[z]} zone`); else { sim.leaking.add(z); note(`Leak started in ${ZONE_NAMES[z]} zone`); }
+  if (sim.leaking.delete(z)) { sim.support[z] = ctl.setpoints[z]; note(`Leak repaired in ${ZONE_NAMES[z]} zone (zone refilled)`); } else { sim.leaking.add(z); note(`Leak started in ${ZONE_NAMES[z]} zone`); }
 };
 
 interface Slider { label: string; min: number; max: number; step: number; get: () => number; set: (v: number) => void }
@@ -104,21 +110,34 @@ const note = (msg: string) => addLog({ t: simT, kind: "demo", msg });
 
 // ---------- simulation loop ----------
 function stepOnce(dt = 0.1) {
-  simT += dt;
-  while (script && script.length && script[0].at <= simT) script.shift()!.fn();
-  if (script && !script.length) script = null;
-  frame = sim.step(dt, estop ? neutral() : ctl.setpoints);
-  if (!estop) { const r = ctl.step(frame, dt); r.events.forEach(addLog); risk = r.risk; }
+  if (!replay && !link) { simT += dt; while (script && script.length && script[0].at <= simT) script.shift()!.fn(); if (script && !script.length) script = null; }
+  let used = dt;
+  if (replay) {
+    const r = replay.read();
+    if (!r) { replay = null; $("bReplay").textContent = "Load CSV replay…"; setSource("Simulator"); note("Replay finished. Back to the simulator."); return; }
+    frame = r.frame; used = r.dt; simT = r.frame.t;
+  } else if (link) {
+    const f = link.take();
+    if (f) { used = lastFrameT > 0 && f.t > lastFrameT ? f.t - lastFrameT : dt; lastFrameT = f.t; frame = f; simT += used; }
+    else {
+      simT += dt;
+      if (link.silentForS() > ctl.cfg.watchdogS) { const r = ctl.onNoData(); r.events.forEach(addLog); void link.send(neutral()); }
+      return;
+    }
+  } else frame = sim.step(dt, estop ? neutral() : ctl.setpoints);
+  if (!estop || replay) { const r = ctl.step(frame, used); r.events.forEach(addLog); risk = r.risk; }
+  if (link) void link.send(estop ? neutral() : ctl.setpoints);
   const fin = frame.pressure.filter(Number.isFinite);
   hist.push(fin.length ? Math.max(...fin) : 0); if (hist.length > 300) hist.shift();
-  if (rows.length < 50000) rows.push([simT.toFixed(1), estop ? "ESTOP" : ctl.state, ...frame.pressure.map(v => v.toFixed(1)), ...frame.temp.map(v => v.toFixed(2)),
-    ...ZONES.map(z => ctl.setpoints[z].toFixed(2)), ...ZONES.map(z => sim.support[z].toFixed(2)), Math.max(...risk).toFixed(3)].join(","));
+  const act = {} as Setpoints; for (const z of ZONES) act[z] = supportOf(z);
+  if (rows.length < 50000) rows.push(csvRow(simT, estop && !replay ? "ESTOP" : ctl.state, frame, ctl.setpoints, act, Math.max(...risk)));
 }
+function setSource(name: string) { $("srcName").textContent = name; }
 const setM = (id: string, v: string) => { $(id).textContent = v; };
 function render() {
   const st = estop ? "ESTOP" : ctl.state;
   for (const s of STATES) $("c" + s).className = "chip " + s + (s === st ? " on" : "");
-  for (const z of ZONES) { zTx[z].textContent = `${ZONE_NAMES[z]} ${Math.round(sim.support[z] * 100)}%`; const low = sim.support[z] < 0.45; zEl[z].setAttribute("stroke", low ? "var(--ac)" : "var(--mut)"); zEl[z].setAttribute("stroke-width", low ? "3" : "1.5"); }
+  for (const z of ZONES) { zTx[z].textContent = `${ZONE_NAMES[z]} ${Math.round(supportOf(z) * 100)}%`; const low = supportOf(z) < 0.45; zEl[z].setAttribute("stroke", low ? "var(--ac)" : "var(--mut)"); zEl[z].setAttribute("stroke-width", low ? "3" : "1.5"); }
   const thr = ctl.cfg.thresholdKpa;
   blobs.forEach((b, i) => {
     const v = frame.pressure[i], ok = Number.isFinite(v);
@@ -166,7 +185,28 @@ $("bStop").onclick = () => { estop = !estop; $("bStop").textContent = estop ? "R
 $("bCal").onclick = () => { ctl.calibrate(frame); note("Baseline skin temperature recorded for all sites"); };
 $("bReset").onclick = reset;
 $("bCsv").onclick = () => {
-  const head = ["t_s", "state", ...SENSORS.map(s => "p_" + s.name), ...SENSORS.map(s => "temp_" + s.name), ...ZONES.map(z => "cmd_" + z), ...ZONES.map(z => "act_" + z), "peak_risk"].join(",");
-  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([head + "\n" + rows.join("\n")], { type: "text/csv" })); a.download = "offload-session.csv"; a.click();
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([CSV_HEAD + "\n" + rows.join("\n")], { type: "text/csv" })); a.download = "offload-session.csv"; a.click();
+};
+
+// ---------- data sources: simulator (default), CSV replay, device over Web Serial ----------
+function stopLink() { if (link) { void link.disconnect(); link = null; $("bSerial").textContent = "Connect device (Web Serial)"; } }
+function toSimulator() { replay = null; stopLink(); $("bReplay").textContent = "Load CSV replay…"; reset(); setSource("Simulator"); }
+$("bReplay").onclick = () => { if (replay) toSimulator(); else $("fileReplay").click(); };
+($("fileReplay") as HTMLInputElement).onchange = async e => {
+  const f = (e.target as HTMLInputElement).files?.[0]; (e.target as HTMLInputElement).value = ""; if (!f) return;
+  try {
+    const frames = parseCsv(await f.text()); stopLink(); reset(); replay = new ReplaySource(frames);
+    setSource(`Replay: ${f.name} (${frames.length} rows)`); $("bReplay").textContent = "Stop replay";
+    note(`Replaying ${f.name}. The controller runs on the recorded data; its commands are shown but cannot change it.`);
+    $("bReplay").onclick = () => { toSimulator(); $("bReplay").onclick = () => { if (replay) toSimulator(); else $("fileReplay").click(); }; };
+  } catch (err) { addLog({ t: simT, kind: "fault", msg: "Could not read the CSV: " + (err as Error).message }); }
+};
+$("bSerial").onclick = async () => {
+  if (link) { toSimulator(); return; }
+  if (!SerialLink.supported) { addLog({ t: simT, kind: "fault", msg: "Web Serial is not available in this browser. Use Chrome or Edge." }); return; }
+  try {
+    const l = new SerialLink(); await l.connect(); replay = null; reset(); link = l; lastFrameT = 0; speed = 1;
+    setSource("Device (Web Serial)"); $("bSerial").textContent = "Disconnect device"; note("Device connected. Commands are sent to the board; it must enforce its own limits.");
+  } catch (err) { addLog({ t: simT, kind: "fault", msg: "Could not open the serial port: " + (err as Error).message }); }
 };
 sync(); note("Ready. Press Guided demo, or apply scenarios and change parameters.");
