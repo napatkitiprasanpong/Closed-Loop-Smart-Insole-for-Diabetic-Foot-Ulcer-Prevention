@@ -12,8 +12,14 @@
 **Data sources (tests in `src/io.test.ts`)**
 - CSV replay of recorded sessions, shared CSV format with the dashboard export, device JSON line protocol, Web Serial link (port handling untested on hardware), data-source selector in the dashboard.
 
+**Firmware skeleton (`firmware/`)**
+- Portable core with the board's JSON line protocol, sensor conversions and a valve and pump driver with safety rules (clamp, command timeout, no fill with vent, stall and pump limits, rail-off). 101k host checks pass (`make -C firmware/test/host`). `test/cross_check.sh` confirms the C++ and dashboard protocol code agree in both directions.
+- `src/main.cpp` (pins, mux scan, serial loop, hardware watchdog) is written but **never compiled or run on hardware**. Pressure calibration is a placeholder.
+
+**CAD**
+- Control box now has 8 valve placeholders (fill and vent per zone) to match the board: `insole-cad/stl/control_box_components.stl` and the model embedded in `cad-viewer.html`. The STL is still watertight (checked). I could not open the viewer in a browser here, so please look at it once.
+
 **Not done**
-- CAD control box still shows 4 valve placeholders (board drives 8). STL and the CAD viewer need regenerating.
 - Contact line in README still a placeholder.
-- No firmware yet.
+- Firmware `main.cpp` not compiled; no bladder pressure feedback; calibration placeholder.
 - Test files are not type-checked here (no `@types/node` offline); `npm run typecheck` in CI will check them.
