@@ -29,6 +29,8 @@ let hist: number[] = [];
 let rows: string[] = [];
 let replay: ReplaySource | null = null, link: SerialLink | null = null;   // data source: simulator unless one of these is set
 let lastFrameT = 0;
+let walking = false, stepDt = 0.1;   // walking mode: strides in the load, peak-hold in the controller, 20 Hz steps
+function applyWalking() { sim.params.gaitPeriodS = walking ? 1.1 : 0; sim.params.sensorTauS = walking ? 0.02 : 0.1; ctl.cfg.gaitWindowS = walking ? 1.5 : 0; stepDt = walking ? 0.05 : 0.1; if (walking && ctl.cfg.persistenceS <= 2) ctl.cfg.persistenceS = 2; }
 const supportOf = (z: Zone) => frame.bladder?.[z] ?? sim.support[z];
 
 // ---------- foot map ----------
@@ -79,7 +81,7 @@ $("bLeak").onclick = () => {
 interface Slider { label: string; min: number; max: number; step: number; get: () => number; set: (v: number) => void }
 const SLIDERS: Slider[] = [
   { label: "Hotspot threshold (kPa)", min: 200, max: 600, step: 10, get: () => ctl.cfg.thresholdKpa, set: v => ctl.cfg.thresholdKpa = v },
-  { label: "Persistence check (s)", min: 0.5, max: 5, step: 0.5, get: () => ctl.cfg.persistenceS, set: v => ctl.cfg.persistenceS = v },
+  { label: "Persistence check (s)", min: 0.5, max: 5, step: 0.5, get: () => ctl.cfg.persistenceS, set: v => ctl.cfg.persistenceS = ctl.cfg.gaitWindowS > 0 ? Math.max(v, ctl.cfg.gaitWindowS + 0.5) : v },
   { label: "Deflation step", min: 0.1, max: 0.5, step: 0.05, get: () => ctl.cfg.stepFirst, set: v => ctl.cfg.stepFirst = v },
   { label: "First re-test wait (s)", min: 3, max: 30, step: 1, get: () => ctl.cfg.holdS, set: v => ctl.cfg.holdS = v },
   { label: "Longest wait between re-tests (s)", min: 10, max: 120, step: 2, get: () => ctl.cfg.holdMaxS, set: v => ctl.cfg.holdMaxS = v },
@@ -154,11 +156,11 @@ function render() {
   const ty = 90 - thr / 600 * 90;
   $("ch").innerHTML = `<line x1="0" x2="300" y1="${ty}" y2="${ty}" stroke="var(--bad)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/><polyline fill="none" stroke="var(--ac)" stroke-width="2" vector-effect="non-scaling-stroke" points="${hist.map((v, i) => `${i},${90 - Math.min(90, v / 600 * 90)}`).join(" ")}"/>`;
 }
-setInterval(() => { if (!paused) { acc += speed; while (acc >= 1) { stepOnce(); acc -= 1; } } render(); }, 100);
+setInterval(() => { if (!paused) { acc += speed; while (acc >= 1) { for (let k = 0; k < Math.round(0.1 / stepDt); k++) stepOnce(stepDt); acc -= 1; } } render(); }, 100);
 
 // ---------- run controls ----------
 function reset() {
-  sim = new Simulator(1); ctl = new Controller(); frame = sim.step(0, ctl.setpoints); risk = SENSORS.map(() => 0);
+  sim = new Simulator(1); ctl = new Controller(); applyWalking(); frame = sim.step(0, ctl.setpoints); risk = SENSORS.map(() => 0);
   simT = 0; hist = []; rows = []; script = null; estop = false; $("log").innerHTML = ""; sync(); setM("mReg", "–"); ["mB", "mA", "mE", "mN"].forEach(id => setM(id, "–"));
 }
 function guided() {
@@ -179,7 +181,8 @@ function guided() {
 }
 $("bGuided").onclick = guided;
 $("bPause").onclick = () => { paused = !paused; $("bPause").textContent = paused ? "Resume" : "Pause"; };
-$("bStep").onclick = () => { if (paused) stepOnce(); };
+$("bStep").onclick = () => { if (paused) stepOnce(stepDt); };
+$("bGait").onclick = () => { walking = !walking; applyWalking(); sync(); $("bGait").textContent = "Walking load: " + (walking ? "on" : "off"); note(walking ? "Walking load on: strides in the load, controller judges peaks over 1.5 s." : "Standing load: steady."); };
 ($("sSpeed") as HTMLSelectElement).onchange = e => { speed = +(e.target as HTMLSelectElement).value; };
 $("bStop").onclick = () => { estop = !estop; $("bStop").textContent = estop ? "Release E-STOP" : "E-STOP"; addLog({ t: simT, kind: estop ? "alert" : "info", msg: estop ? "E-STOP: controller bypassed, all zones driven to neutral." : "E-stop released. Controller resumed." }); };
 $("bCal").onclick = () => { ctl.calibrate(frame); note("Baseline skin temperature recorded for all sites"); };

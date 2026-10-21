@@ -1,7 +1,7 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}</style><style>:root{color-scheme:light dark;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}}:root[data-theme="dark"]{color-scheme:dark;--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}:root[data-theme="light"]{color-scheme:light}@media print{:root,:root[data-theme="dark"]{color-scheme:light;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}}body{background:var(--md-bg);color:var(--md-text);max-width:720px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:10px;font:14px/1.55 -apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;overflow-wrap:break-word}body>:first-child{margin-top:0}h1,h2,h3,h4,h5,h6{margin:6px 0 0;line-height:1.25;font-weight:600;text-wrap:balance}h1{font-size:1.35em}h2{font-size:1.15em;color:var(--md-muted)}h3,h4,h5,h6{font-size:1em}p,ul,ol,blockquote,table,pre,hr{margin:0}strong{font-weight:600}a{color:var(--md-link);text-decoration:none}a:hover{text-decoration:underline}ul,ol{display:flex;flex-direction:column;gap:6px;padding-left:22px}ul{list-style:disc}ol{list-style:decimal}:is(li,td,th)>*+:is(p,ul,ol,blockquote){margin-top:6px}blockquote{display:flex;flex-direction:column;gap:10px;border-left:2px solid var(--md-rule);padding-left:10px;color:var(--md-muted)}:not(pre)>code{background:var(--md-fill);padding:1px 3px;border-radius:4px;font:.92em 'SF Mono',ui-monospace,Menlo,Consolas,monospace}a>code{background:none;color:inherit}pre{background:var(--md-fill);padding:10px 12px;border-radius:6px;overflow-x:auto;font:12px/1.5 'SF Mono',ui-monospace,Menlo,Consolas,monospace;margin-block:4px}pre code{background:none;padding:0;font:inherit}table{width:100%;border-collapse:separate;border-spacing:2px;font:inherit}th,td{padding:6px 8px;border-radius:3px;text-align:left;vertical-align:top}th{background:var(--md-fill-strong);font-weight:600}td{background:var(--md-fill)}:is(th,td) :not(pre)>code{background:transparent}hr{border:0;border-top:1px solid var(--md-rule-strong);margin-block:10px}img{max-width:100%;height:auto;border-radius:4px}</style>
 </head><body>
 <h1>Closed-Loop Smart Diabetic-Foot Prevention System</h1>
-<h2>Requirements, safety and risk register (draft v0.1 for review)</h2>
+<h2>Requirements, safety and risk register (draft v0.2 for review)</h2>
 <p><strong>Status of this document:</strong> a working draft for review by a supervisor, clinician or engineer. Items marked <strong>TBD</strong> need a decision from a reviewer. Numeric targets are <strong>proposed prototype targets</strong>, not clinically validated values.</p>
 <hr>
 <h2>1. Purpose and scope</h2>
@@ -9,6 +9,7 @@
 <p><strong>In scope (3-month prototype):</strong> bench testing of sensing, pneumatic actuation, closed-loop control, dashboard and data logging, aimed at <strong>ulcer prevention</strong>.</p>
 <p><strong>Out of scope for this phase:</strong> treatment of existing wounds, testing on active wounds, electrical stimulation, drug delivery, any diagnostic or clinical-effectiveness claim, and any use on people before ethics approval.</p>
 <p><strong>Claim to be used:</strong> <em>&quot;Existing diabetic-foot technologies generally monitor plantar pressure or temperature and provide warnings. This project investigates automatic, feedback-controlled pressure redistribution using a multimodal sensorized insole.&quot;</em></p>
+<p><strong>Changes since v0.1:</strong> the status table now covers the safety monitors, CSV replay, firmware skeleton and bench test plan added to the project; the safety table has a status column; the artifacts table was updated. No requirement or target value was changed.</p>
 <hr>
 <h2>2. Current status (honest summary)</h2>
 <table>
@@ -21,19 +22,31 @@
 <tbody>
 <tr>
 <td>Control logic (detect, confirm, adjust, verify, keep or reverse, alert)</td>
-<td>Built and unit-tested <strong>in simulation only</strong></td>
+<td>Built and unit-tested <strong>in simulation only</strong>. Walking load: the controller can judge each sensor by its peak over a short window (off by default), tested against a schematic stride model, not measured gait data. FR-03 is met only in that sense; the persistence and window times are placeholders for the clinician</td>
 </tr>
 <tr>
-<td>Dashboard (live map, parameters, fault injection, CSV export)</td>
-<td>Built; runs on simulated data</td>
+<td>Safety monitors (watchdog, out-of-range and stuck sensors, leak detection, maximum activation time)</td>
+<td>Built and unit-tested <strong>in simulation only</strong>; all limits are placeholder values. Leak detection needs a bladder pressure readback that the board does not have yet</td>
+</tr>
+<tr>
+<td>Dashboard (live map, parameters, fault injection, CSV export, CSV replay, serial input)</td>
+<td>Built; runs on simulated data. It can replay recorded CSV sessions through the controller (tested) and read a board over Web Serial (parser tested, port handling <strong>not tested on hardware</strong>)</td>
 </tr>
 <tr>
 <td>Insole CAD (layers, bladders, sensor pockets, control box)</td>
-<td>Concept model; not validated by any physical test</td>
+<td>Concept model (control box now shows 8 valves, matching the board); not validated by any physical test</td>
 </tr>
 <tr>
 <td>Controller board</td>
 <td>Schematic-level design; not reviewed by an electronics engineer; not built</td>
+</tr>
+<tr>
+<td>Firmware</td>
+<td>Skeleton. The portable core (protocol, sensor conversions, valve and pump driver with safety rules) is tested <strong>on a PC only</strong>; the board code has <strong>never been compiled or run</strong>; pressure calibration is a placeholder; there is no bladder pressure feedback</td>
+</tr>
+<tr>
+<td>Bench test plan</td>
+<td>Written (<code>docs/bench-plan.md</code>, six stages); <strong>no stage has been run</strong>; acceptance numbers are suggestions</td>
 </tr>
 <tr>
 <td>Sensors, bladders, pump, valves</td>
@@ -218,6 +231,7 @@
 <th>ID</th>
 <th>Requirement</th>
 <th>Verify</th>
+<th>Status</th>
 </tr>
 </thead>
 <tbody>
@@ -225,51 +239,61 @@
 <td>SR-01</td>
 <td>A <strong>hardware E-stop</strong> cuts actuator power independently of firmware</td>
 <td>T</td>
+<td>Designed in hardware (schematic); not built or tested</td>
 </tr>
 <tr>
 <td>SR-02</td>
 <td>All pump and valve outputs are off at power-up and reset</td>
 <td>T</td>
+<td>Designed (pull-down resistors on the board); the firmware forces outputs off first thing at start-up. Not run on hardware</td>
 </tr>
 <tr>
 <td>SR-03</td>
 <td>A <strong>maximum bladder pressure</strong> is enforced twice: in firmware and by a mechanical relief valve. The limit is <strong>TBD</strong>, set after bladder burst/leak tests and clinician input</td>
 <td>T</td>
+<td><strong>Not met today.</strong> Mechanical relief valve is in the design only. The firmware limit is not implemented: it needs a bladder pressure sensor, which is not built</td>
 </tr>
 <tr>
 <td>SR-04</td>
 <td>A <strong>maximum activation time</strong> per adjustment, after which the system returns to a safe state</td>
 <td>T</td>
+<td><strong>Implemented in simulation only</strong> (controller limit on time away from neutral; the alert holds until the load is relieved). The firmware limits each valve move to 8 s and the pump to 20 s in a row, tested on a PC only. Limit values TBD</td>
 </tr>
 <tr>
 <td>SR-05</td>
 <td>Loss or implausible reading of any sensor puts the system in a fault state and stops further adjustment</td>
 <td>T</td>
+<td><strong>Implemented in simulation only</strong> (lost sensor, out-of-range reading, stuck sensor, missing data). The firmware returns to neutral after 1 s without a command, tested on a PC only. Thresholds are placeholders</td>
 </tr>
 <tr>
 <td>SR-06</td>
 <td>The controller never makes an adjustment that raises any region above the threshold; if it does, it reverses and alerts</td>
 <td>T</td>
+<td>Implemented and unit-tested in simulation only</td>
 </tr>
 <tr>
 <td>SR-07</td>
 <td>Bench phase uses a current-limited supply or a protected battery module; no bare lithium cells</td>
 <td>I</td>
+<td>Process item. The bench plan specifies a current-limited supply; not yet applicable</td>
 </tr>
 <tr>
 <td>SR-08</td>
 <td>No use on human subjects until ethics approval is in place and clinical oversight is arranged</td>
 <td>I</td>
+<td>Process item. The bench plan rules out human use; ethics not started</td>
 </tr>
 <tr>
 <td>SR-09</td>
 <td>Every threshold shown in the software is labeled <strong>not diagnostic and not clinically validated</strong></td>
 <td>I</td>
+<td>Not yet checked against the dashboard and deck</td>
 </tr>
 <tr>
 <td>SR-10</td>
 <td>Materials touching skin in any future human use must be biocompatible and certified</td>
 <td>I</td>
+<td>Not applicable until any future human use</td>
 </tr>
 </tbody>
 </table>
@@ -457,6 +481,7 @@
 <li>A hotspot threshold of 400 kPa, persistence of 2 s, and deflation steps of 35% then 20% are demo values.</li>
 <li>Neighbouring zones receive a share of the pressure removed from a deflated zone; the coefficient is invented for the simulation.</li>
 <li>Fill and vent valves are normally closed, so bladders hold pressure when power is lost.</li>
+<li>The walking-load model (a half-sine per sensor, heel first, about 1.1 s per stride, 1.5 s peak-hold window) is a schematic stand-in for real gait data.</li>
 <li>Temperature sensing uses 10 kΩ thermistors; the pump and valves are assumed to be 5 V parts.</li>
 </ul>
 <p><strong>Questions for a clinician or diabetic-foot specialist:</strong></p>
@@ -488,7 +513,7 @@
 <tbody>
 <tr>
 <td>Interactive web demo and the offload-demo project (controller, simulator, tests)</td>
-<td>FR-03 to FR-08, FR-10 to FR-13, SR-05, SR-06 (simulation only)</td>
+<td>FR-03 to FR-08, FR-10 to FR-13, SR-04, SR-05, SR-06 (simulation only); CSV replay supports FR-12 and bench analysis</td>
 </tr>
 <tr>
 <td>3D CAD model and layer outlines</td>
@@ -501,6 +526,14 @@
 <tr>
 <td>ESP32-S3 board schematic, netlist, BOM, pin map</td>
 <td>FR-01, FR-02, FR-04, SR-01, SR-02 (design only)</td>
+</tr>
+<tr>
+<td>Firmware skeleton (<code>firmware/</code>)</td>
+<td>SR-02, SR-04, SR-05 (core logic tested on a PC only; board code never compiled)</td>
+</tr>
+<tr>
+<td>Bench test plan (<code>docs/bench-plan.md</code>)</td>
+<td>FR-01, FR-02, PR-03, PR-04, R-01, R-02, R-04 (a plan only; nothing run yet)</td>
 </tr>
 </tbody>
 </table>

@@ -11,6 +11,9 @@ export interface SimParams {
   leakRate: number;      // support lost per second in leaking zones
   sigmaMm: number;       // spread of transferred load between sensors
   stiffGain: number;     // extra load taken by inflated neighbours
+  gaitPeriodS: number;   // 0 = standing still. Otherwise a walking load: each sensor is loaded once per stride, heel first and toes last, and unloaded in swing
+  gaitStance: number;    // fraction of the stride the foot is on the ground
+  sensorTauS: number;    // sensor and bladder response time (use about 0.02 s with gait, so a 0.3 s stance is not smeared away)
 }
 
 export function mulberry32(seed: number) {
@@ -28,7 +31,7 @@ export function mulberry32(seed: number) {
  * zone is re-applied on nearby sensors of other zones (by distance and stiffness), so offloading one region can load another.
  */
 export class Simulator {
-  params: SimParams = { transfer: 0.6, noise: 0.02, coupling: 0.9, actuatorRate: 0.25, leakRate: 0.05, sigmaMm: 55, stiffGain: 1 };
+  params: SimParams = { transfer: 0.6, noise: 0.02, coupling: 0.9, actuatorRate: 0.25, leakRate: 0.05, sigmaMm: 55, stiffGain: 1, gaitPeriodS: 0, gaitStance: 0.6, sensorTauS: 0.1 };
   load: number[] = SENSORS.map(() => 0);
   disconnected = new Set<number>();
   leaking = new Set<Zone>();
@@ -48,6 +51,14 @@ export class Simulator {
     this.Ksigma = this.params.sigmaMm; this.K = kernel(this.Ksigma);
   }
 
+  /** Load factor 0 to 1 for sensor i at the current time. Standing: always 1. Walking: a half-sine while the sensor's part of the foot is loaded.
+   *  The scenario loads are the PEAK pressure of each step. Schematic timing: heel loads first, toes last, each for about a third of the stride. */
+  gaitFactor(i: number): number {
+    const q = this.params; if (q.gaitPeriodS <= 0) return 1;
+    const ph = ((this.t / q.gaitPeriodS) % 1 + 1) % 1, w = 0.55 * q.gaitStance, start = (1 - (SENSORS[i].y - 48) / 317) * (q.gaitStance - w);   // image y: 48 at the toes, 365 at the heel
+    const x = (ph - start) / w; return x >= 0 && x <= 1 ? Math.sin(Math.PI * x) : 0;
+  }
+
   spike(i: number, amount: number, seconds: number) { this.transients.push({ i, amount, left: seconds }); }
 
   /** Noise-free steady-state pressures for the current loads and support levels. */
@@ -55,7 +66,7 @@ export class Simulator {
     const q = this.params;
     if (q.sigmaMm !== this.Ksigma) { this.Ksigma = q.sigmaMm; this.K = kernel(q.sigmaMm); }
     const delta = {} as Record<Zone, number>; for (const z of ZONES) delta[z] = NEUTRAL - this.support[z];
-    const f0 = SENSORS.map((s, i) => s.baseKpa + this.load[i] + this.transients.filter(x => x.i === i && x.left > 0).reduce((a, x) => a + x.amount, 0));
+    const f0 = SENSORS.map((s, i) => (s.baseKpa + this.load[i] + this.transients.filter(x => x.i === i && x.left > 0).reduce((a, x) => a + x.amount, 0)) * this.gaitFactor(i));
     const d = f0.map((v, i) => -q.coupling * delta[SENSORS[i].zone] * v);
     const comp = redistribute(d, this.support, q.transfer, this.K, q.stiffGain);
     return f0.map((v, i) => Math.max(0.05 * v, v + d[i] + comp[i]));
@@ -74,7 +85,7 @@ export class Simulator {
       if (this.leaking.has(z)) this.support[z] = Math.max(0, this.support[z] - q.leakRate * dt);
     }
     for (const tr of this.transients) tr.left -= dt;
-    const alpha = 1 - Math.exp(-dt / 0.1), target = this.steady();
+    const alpha = 1 - Math.exp(-dt / q.sensorTauS), target = this.steady();
     SENSORS.forEach((_, i) => {
       this.p[i] += (target[i] * (1 + (this.rnd() - 0.5) * 2 * q.noise) - this.p[i]) * alpha;
       const tt = 32 + Math.max(0, Math.min(1, (this.p[i] - 300) / 200)) * 3;

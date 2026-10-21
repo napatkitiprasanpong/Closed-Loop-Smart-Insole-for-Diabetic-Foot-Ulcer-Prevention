@@ -19,6 +19,16 @@
 **CAD**
 - Control box now has 8 valve placeholders (fill and vent per zone) to match the board: `insole-cad/stl/control_box_components.stl` and the model embedded in `cad-viewer.html`. The STL is still watertight (checked). I could not open the viewer in a browser here, so please look at it once.
 
+**Walking load (new feature, with tests in `src/gait.test.ts`)**
+- Found a real gap: under a walking load the controller logged "short gait event" at every stride and never acted on a 480 kPa heel overload. Added a peak-hold window (`gaitWindowS`, off by default) and a simulator walking mode (`gaitPeriodS`, `gaitStance`, `sensorTauS`), plus a "Walking load" button in the dashboard. Heel, two- and three-hotspot scenarios over five seeds resolve with no alert; a single stride is still ignored. The stride model is schematic, not measured gait.
+
+**Deck and register**
+- Deck (HTML and the 12 Figma SVGs, same text): safety slide now lists the software monitors and no longer claims a software pressure limit; test count 17 to 46; electronics, proof and roadmap footers updated. I could not render the slides here, so please look at slides 8 to 11 once.
+- Requirements register v0.2: status column on the safety table (SR-04 and SR-05 marked implemented in simulation only; SR-03 marked not met today), new status rows (safety monitors, firmware, bench plan, walking load), artifacts table updated. No requirement or target changed.
+
+**Docs**
+- `docs/bench-plan.md`: six-stage plan for the first hardware tests (wiring, FSR and NTC calibration, command and safety behaviour, pneumatics, the central offloading test) and a table of where each measured number goes. Acceptance numbers in it are suggestions, not agreed values.
+
 **Not done**
 - Contact line in README still a placeholder.
 - Firmware `main.cpp` not compiled; no bladder pressure feedback; calibration placeholder.

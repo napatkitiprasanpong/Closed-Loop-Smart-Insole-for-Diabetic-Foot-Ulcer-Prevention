@@ -39,6 +39,8 @@ button:hover{border-color:var(--ac)}button.p{background:var(--ac);color:#fff;bor
     <button id="bSerial">Connect device (Web Serial)</button></div>
    <p class="hint">Replay runs the controller on a recorded session (for example one exported here, or logged by the board). Device mode needs Chrome or Edge and the line protocol in <code>src/io/device.ts</code>; it has not been tested on hardware yet.</p></div>
   <div class="card"><h2>Scenarios</h2><div id="scen" class="row"></div>
+   <h2>Load pattern</h2><div class="row"><button id="bGait">Walking load: off</button></div>
+   <p class="hint">Standing holds each load steady. Walking applies each scenario's load as the peak of every step (heel first, toes last, about 1.1 s per stride) and makes the controller judge each sensor by its peak over the last 1.5 s.</p>
    <h2>Fault injection</h2><div class="row">
     <select id="fSensor"></select><button id="bDis">Disconnect / reconnect sensor</button>
     <select id="fZone"></select><button id="bLeak">Start / stop leak</button></div></div>

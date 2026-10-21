@@ -60,9 +60,11 @@ export class Controller {
   /** Zones currently flagged as leaking. The planner keeps them at neutral until they read normally again. */
   leakZones = new Set<Zone>();
   private alertT = 0;
+  private pk: { t: number; p: number[] }[] = [];   // raw readings inside the peak-hold window (walking mode)
 
   constructor(cfg: Partial<ControllerConfig> = {}) {
     this.cfg = { ...DEFAULT_CONFIG, ...cfg };
+    if (this.cfg.gaitWindowS < 0 || (this.cfg.gaitWindowS > 0 && this.cfg.gaitWindowS >= this.cfg.persistenceS)) throw new Error(`gaitWindowS (${this.cfg.gaitWindowS}) must be 0 or shorter than persistenceS (${this.cfg.persistenceS}), or a single step would count as sustained`);
     this.est = { own: this.cfg.priorOwn, tau: this.cfg.priorTransfer };
     this.K = kernel(this.cfg.sigmaMm); this.margin = this.cfg.marginRatio;
     this.resetHold();
@@ -75,19 +77,20 @@ export class Controller {
     const events: LogEvent[] = [];
     const log: Log = (kind, msg) => events.push({ t: +this.clock.toFixed(2), kind, msg });
     this.clock += dt; this.stateT += dt;
-    const p = frame.pressure, c = this.cfg;
+    const raw = frame.pressure, c = this.cfg;
     let verification: Verification | undefined;
 
     if (c.watchdogS > 0 && dt > c.watchdogS) {
       if (this.state !== "FAULT") this.enterFault(`Watchdog: no data for ${dt.toFixed(1)} s. All zones returned to neutral support.`, log);
       return this.result(events);
     }
-    const bad = p.some(v => !Number.isFinite(v)) ? "Sensor reading lost. All zones returned to neutral support." : this.implausible(frame, dt);
+    const bad = raw.some(v => !Number.isFinite(v)) ? "Sensor reading lost. All zones returned to neutral support." : this.implausible(frame, dt);
     if (bad) {
       if (this.state !== "FAULT") this.enterFault(bad, log);
       return this.result(events);
     }
     if (this.state === "FAULT") { this.go("MONITOR"); log("info", "Sensors recovered. Monitoring resumed."); }
+    const p = this.peakHold(raw);   // equal to raw unless walking mode is on
 
     this.hist.push({ t: this.clock, p: p.slice() });
     while (this.hist.length > 1 && this.hist[0].t < this.clock - 3 * c.settleWindowS - dt) this.hist.shift();
@@ -143,11 +146,20 @@ export class Controller {
   }
 
 
+  /** Walking mode: the highest reading of each sensor over the last gaitWindowS. Steady load passes through unchanged, a load that returns every
+   *  stride stays high between steps, and a single step falls away after the window (which is shorter than the persistence time). */
+  private peakHold(raw: number[]): number[] {
+    const w = this.cfg.gaitWindowS; if (w <= 0) return raw;
+    this.pk.push({ t: this.clock, p: raw.slice() });
+    while (this.pk.length > 1 && this.pk[0].t < this.clock - w) this.pk.shift();
+    return raw.map((_, i) => { let m = -Infinity; for (const r of this.pk) if (r.p[i] > m) m = r.p[i]; return m; });
+  }
+
   /** Put every zone at neutral and drop any plan in progress. */
   private safeState() {
     this.neutralise(); this.tgt = -1; this.attempt = 0; this.plan = undefined; this.probeZone = null; this.quiet = 0; this.resetHold(); this.hist = [];
     for (const z of ZONES) this.activeT[z] = 0;
-    this.alertT = 0;
+    this.alertT = 0; this.pk = [];
   }
 
   private enterFault(msg: string, log: Log) { this.safeState(); this.go("FAULT"); log("fault", msg); }

@@ -48,6 +48,7 @@ export interface ControllerConfig {
   dtRef: number;          // temperature rise (°C) that counts as full temperature risk
   durRef: number;         // seconds above threshold that count as full duration risk
   // ---- safety limits (SR-04, SR-05, watchdog, leak detection). All values are prototype settings, TBD with clinician and bench data.
+  gaitWindowS: number;    // walking: judge each sensor by its PEAK over this window (about 1.5 strides) instead of its instant value. 0 = off (standing or static load). Must be shorter than persistenceS
   maxActiveS: number;     // SR-04: longest a zone may stay away from neutral. After this the system returns to neutral and alerts (0 = off)
   watchdogS: number;      // longest allowed gap between frames; a longer gap is treated as lost data (0 = off)
   pMinKpa: number;        // SR-05: a pressure reading outside [pMinKpa, pMaxKpa] is implausible and puts the system in FAULT
@@ -67,7 +68,7 @@ export const DEFAULT_CONFIG: ControllerConfig = {
   marginRatio: 0.92, improveMin: 0.2, moveCost: 300, priorOwn: 0.8, priorTransfer: 0.4, sigmaMm: 45, stiffGain: 1, relaxStepMax: 0.25,
   minSupport: 0.1, maxSupport: 0.9, holdS: 6, holdMaxS: 64, probeIntervalS: 2, releaseRatio: 0.85, reliefStep: 0.1,
   wp: 0.6, wt: 0.2, wd: 0.2, dtRef: 2.5, durRef: 30,
-  maxActiveS: 600, watchdogS: 1, pMinKpa: -20, pMaxKpa: 1500, tempMinC: 10, tempMaxC: 50, stuckS: 15,
+  gaitWindowS: 0, maxActiveS: 600, watchdogS: 1, pMinKpa: -20, pMaxKpa: 1500, tempMinC: 10, tempMaxC: 50, stuckS: 15,
   leakBand: 0.12, leakS: 6, leakClearS: 5, alertHoldS: 10,
 };
 
