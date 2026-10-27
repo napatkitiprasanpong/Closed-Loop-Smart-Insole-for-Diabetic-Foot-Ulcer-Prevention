@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="insole-deck-svg">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/insole-deck-svg.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
