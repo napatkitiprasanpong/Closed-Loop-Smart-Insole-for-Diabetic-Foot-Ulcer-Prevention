@@ -165,5 +165,5 @@ Alert-only products include the Orpyx insole, the Podimetrics SmartMat and Siren
 MIT (see `LICENSE`). Change it if you prefer something else, for example CC BY 4.0 for the documents and design files.
 
 ## Contact
+napat.kitiprasanpong@g.swu.ac.th
 
-[Your name, institution and email]
