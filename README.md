@@ -4,6 +4,12 @@ A concept for an insole that **senses plantar pressure and temperature, adjusts 
 
 > **Status: concept stage. Everything here is simulated or designed on paper. Nothing has been built or tested on a real foot, and this is not a medical device.** Pressure values and thresholds are illustrative, not clinically validated.
 
+## Demo video
+
+[![Closed-Loop Smart Insole demo video (3 min)](docs/insole_demo_thumbnail.png)](https://www.youtube.com/watch?v=Er6olqJmXUQ)
+
+*Click the image to watch the 3-minute walkthrough on YouTube. The video shows the simulated design only; nothing in it was tested on a real foot.*
+
 ---
 
 ## Why this matters
